@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carrot.Memory", "Carrot.Memory\Carrot.Memory.csproj", "{E526AC69-F5C4-4D1F-8C6E-C6815AABC280}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Carrot.Memory.UnitTest", "Carrot.Memory.UnitTest\Carrot.Memory.UnitTest.csproj", "{28318100-AB65-412B-AFD6-709E3BFFDDF3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E526AC69-F5C4-4D1F-8C6E-C6815AABC280}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E526AC69-F5C4-4D1F-8C6E-C6815AABC280}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E526AC69-F5C4-4D1F-8C6E-C6815AABC280}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E526AC69-F5C4-4D1F-8C6E-C6815AABC280}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28318100-AB65-412B-AFD6-709E3BFFDDF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28318100-AB65-412B-AFD6-709E3BFFDDF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28318100-AB65-412B-AFD6-709E3BFFDDF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28318100-AB65-412B-AFD6-709E3BFFDDF3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
