@@ -14,9 +14,9 @@ namespace Carrot.Memory
     {
         int RowCount { get; }
         int Width { get; }
-        ref T this[int r, int c] { get; }
-        PagedView<T> GetSlice(int row, int col, int len);
-        PagedView<T> GetSeries(int row, int col, int len);
+        ref readonly T this[int r, int c] { get; }
+        ReadOnlyPagedView<T> GetSlice(int row, int col, int len);
+        ReadOnlyPagedView<T> GetSeries(int row, int col, int len);
     }
 
     /// <summary>
@@ -24,6 +24,9 @@ namespace Carrot.Memory
     /// </summary>
     public interface IPagedMemory2D<T> : IReadonlyPagedMemory2D<T>, IDisposable
     {
+        new ref T this[int r, int c] { get; }
+        new PagedView<T> GetSlice(int row, int col, int len);
+        new PagedView<T> GetSeries(int row, int col, int len);
         void SetElement(int r, int c, T value);
         void SetBlock(int r, int c, ReadOnlySpan2D<T> data);
         void SetRow(int r, int c, ReadOnlySpan<T> data);
@@ -231,6 +234,11 @@ namespace Carrot.Memory
         }
 
         /// <summary>
+        /// 显式实现只读接口索引器。
+        /// </summary>
+        ref readonly T IReadonlyPagedMemory2D<T>.this[int r, int c] => ref this[r, c];
+
+        /// <summary>
         /// 在指定位置设置单行数据块（水平写入）。
         /// </summary>
         public void SetRow(int r, int c, ReadOnlySpan<T> data)
@@ -265,6 +273,17 @@ namespace Carrot.Memory
         }
 
         /// <summary>
+        /// 显式实现只读接口视图获取。
+        /// </summary>
+        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetSlice(int row, int col, int len)
+        {
+            int rowCount = Volatile.Read(ref _rowCount);
+            if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
+            var page = Volatile.Read(ref _pages)[row >> _shift].Span;
+            return new ReadOnlyPagedView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
+        }
+
+        /// <summary>
         /// 获取指定列中某一段的垂直视图（Series），支持跨页。
         /// </summary>
         /// <param name="row">起始行索引。</param>
@@ -289,6 +308,24 @@ namespace Carrot.Memory
             return new PagedView<T>(this, row, col, len);
         }
 
+        /// <summary>
+        /// 显式实现只读接口视图获取。
+        /// </summary>
+        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetSeries(int row, int col, int len)
+        {
+            int rowCount = Volatile.Read(ref _rowCount);
+            if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
+
+            int pageRowsLeft = _pageSize - (row & _mask);
+            if (len <= pageRowsLeft)
+            {
+                var span2d = Volatile.Read(ref _pages)[row >> _shift].Span;
+                return new ReadOnlyPagedView<T>(span2d.Slice(row & _mask, col, len, 1));
+            }
+
+            return new ReadOnlyPagedView<T>(this, row, col, len);
+        }
+
         #region Throw Helpers
 
         [DoesNotReturn]
@@ -307,7 +344,7 @@ namespace Carrot.Memory
         {
             // 获取当前页面数组的快照，避免遍历过程中数组引用变更
             var pagesSnapshot = Volatile.Read(ref _pages);
-            int count = _pageCount;
+            int count = Math.Min(_pageCount, pagesSnapshot.Length);
             for (int i = 0; i < count; i++)
             {
                 _provider.Flush(pagesSnapshot[i], i);
@@ -326,13 +363,79 @@ namespace Carrot.Memory
     }
 
     /// <summary>
-    /// 表示对 <see cref="PagedMemory2D{T}"/> 中某一部分数据的统一视图。
-    /// 该结构为 ref struct，旨在提供零分配的切片访问。
+    /// 表示对 <see cref="PagedMemory2D{T}"/> 中某一部分数据的统一视图（只读）。
     /// </summary>
-    /// <typeparam name="T">数据类型。</typeparam>
-    public readonly ref struct PagedView<T>
+    public readonly ref struct ReadOnlyPagedView<T>
     {
         private readonly IReadonlyPagedMemory2D<T> _parent;
+        private readonly ReadOnlySpan<T> _rowSpan;
+        private readonly ReadOnlySpan2D<T> _colSpan2d;
+        private readonly int _r, _c;
+        private readonly byte _mode;
+
+        public int Length { get; }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlyPagedView(ReadOnlySpan<T> rowSpan)
+        {
+            _rowSpan = rowSpan;
+            _colSpan2d = default;
+            _parent = null!;
+            Length = rowSpan.Length;
+            _mode = 0;
+            _r = _c = 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlyPagedView(ReadOnlySpan2D<T> colSpan2d)
+        {
+            _colSpan2d = colSpan2d;
+            _rowSpan = default;
+            _parent = null!;
+            Length = colSpan2d.Height;
+            _mode = 1;
+            _r = _c = 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlyPagedView(IReadonlyPagedMemory2D<T> parent, int r, int c, int len)
+        {
+            _parent = parent;
+            _rowSpan = default;
+            _colSpan2d = default;
+            Length = len;
+            _mode = 2;
+            _r = r;
+            _c = c;
+        }
+
+        public ref readonly T this[int i]
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                if ((uint)i >= (uint)Length) ThrowIndexOutOfRangeException();
+
+                if (_mode == 0) return ref _rowSpan[i];
+                if (_mode == 1) return ref _colSpan2d[i, 0];
+                return ref _parent[_r + i, _c];
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ReadOnlySpan<T> AsSpan() =>
+            _mode == 0 ? _rowSpan : throw new NotSupportedException("仅行视图（GetSlice）可转 Span，列视图或跨页视图不支持此操作。");
+
+        [DoesNotReturn]
+        private static void ThrowIndexOutOfRangeException() => throw new IndexOutOfRangeException("视图访问越界。");
+    }
+
+    /// <summary>
+    /// 表示对 <see cref="PagedMemory2D{T}"/> 中某一部分数据的统一视图（可写）。
+    /// </summary>
+    public readonly ref struct PagedView<T>
+    {
+        private readonly IPagedMemory2D<T> _parent;
         private readonly Span<T> _rowSpan;
         private readonly Span2D<T> _colSpan2d;
         private readonly int _r, _c;
@@ -366,7 +469,7 @@ namespace Carrot.Memory
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal PagedView(IReadonlyPagedMemory2D<T> parent, int r, int c, int len)
+        internal PagedView(IPagedMemory2D<T> parent, int r, int c, int len)
         {
             _parent = parent;
             _rowSpan = default;
