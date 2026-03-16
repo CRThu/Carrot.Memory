@@ -8,10 +8,54 @@ using CommunityToolkit.HighPerformance;
 namespace Carrot.Memory
 {
     /// <summary>
+    /// 提供对二维分页内存的只读访问接口。
+    /// </summary>
+    public interface IReadonlyPagedMemory2D<T>
+    {
+        int RowCount { get; }
+        int Width { get; }
+        ref T this[int r, int c] { get; }
+        PagedView<T> GetSlice(int row, int col, int len);
+        PagedView<T> GetSeries(int row, int col, int len);
+    }
+
+    /// <summary>
+    /// 提供对二维分页内存的读写访问接口。
+    /// </summary>
+    public interface IPagedMemory2D<T> : IReadonlyPagedMemory2D<T>, IDisposable
+    {
+        void SetElement(int r, int c, T value);
+        void SetBlock(int r, int c, ReadOnlySpan2D<T> data);
+        void SetRow(int r, int c, ReadOnlySpan<T> data);
+        void SetColumn(int r, int c, ReadOnlySpan<T> data);
+        void FlushAll();
+    }
+
+    /// <summary>
+    /// 分页供应者接口，支持自定义页面分配和刷新逻辑。
+    /// </summary>
+    public interface IPageProvider<T>
+    {
+        Memory2D<T> Create(int rows, int cols, int index);
+        void Flush(Memory2D<T> page, int index);
+    }
+
+    /// <summary>
+    /// 默认的堆内存页面供应者。
+    /// </summary>
+    public class DefaultHeapPageProvider<T> : IPageProvider<T>
+    {
+        public Memory2D<T> Create(int rows, int cols, int index) => 
+            new T[rows * cols].AsMemory().AsMemory2D(rows, cols);
+
+        public void Flush(Memory2D<T> page, int index) { /* 堆内存无需执行物理刷新 */ }
+    }
+
+    /// <summary>
     /// 提供一个基于分页机制的二维内存容器，支持动态行增长和高性能的行列切片访问。
     /// </summary>
     /// <typeparam name="T">存储的数据类型。</typeparam>
-    public class PagedMemory2D<T> : IDisposable
+    public class PagedMemory2D<T> : IPagedMemory2D<T>
     {
         private const int InitialPageCapacity = 16;
         private readonly ReaderWriterLockSlim _rwLock = new();
@@ -21,7 +65,7 @@ namespace Carrot.Memory
         private readonly int _mask;
         private readonly int _pageSize;
         private readonly int _width;
-        private readonly Func<int, int, int, Memory2D<T>> _pageFactory;
+        private readonly IPageProvider<T> _provider;
 
         private int _rowCount = 0;
         private bool _disposed;
@@ -40,9 +84,9 @@ namespace Carrot.Memory
         /// 初始化 <see cref="PagedMemory2D{T}"/> 类的新实例。
         /// </summary>
         /// <param name="width">每一行的列数（固定宽度）。</param>
-        /// <param name="pageSize">分页行数（必须是 2 的幂，例如 8192）。</param>
-        /// <param name="pageFactory">可选的页面创建工厂。参数为：(rows, cols, pageIndex)。</param>
-        public PagedMemory2D(int width, int pageSize, Func<int, int, int, Memory2D<T>>? pageFactory = null)
+        /// <param name="pageSize">分页行数（必须是 2 的幂）。</param>
+        /// <param name="provider">页面供应者。如果为 null 则使用默认堆内存分配。</param>
+        public PagedMemory2D(int width, int pageSize, IPageProvider<T>? provider = null)
         {
             if (pageSize <= 0 || (pageSize & (pageSize - 1)) != 0)
             {
@@ -54,10 +98,13 @@ namespace Carrot.Memory
             _shift = BitOperations.TrailingZeroCount((uint)pageSize);
             _mask = _pageSize - 1;
             _pages = new Memory2D<T>[InitialPageCapacity];
-
-            // 默认实现：分配普通数组并转换为 Memory2D
-            _pageFactory = pageFactory ?? ((rows, cols, index) => new T[rows * cols].AsMemory().AsMemory2D(rows, cols));
+            _provider = provider ?? new DefaultHeapPageProvider<T>();
         }
+
+        /// <summary>
+        /// 获取只读视图。
+        /// </summary>
+        public IReadonlyPagedMemory2D<T> AsReadOnly() => this;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnsurePageExists(int pageIdx)
@@ -77,7 +124,7 @@ namespace Carrot.Memory
                 while (_pageCount <= pageIdx)
                 {
                     int nextIndex = _pageCount;
-                    _pages[nextIndex] = _pageFactory(_pageSize, _width, nextIndex);
+                    _pages[nextIndex] = _provider.Create(_pageSize, _width, nextIndex);
                     _pageCount++;
                 }
         }
@@ -254,6 +301,20 @@ namespace Carrot.Memory
         #endregion
 
         /// <summary>
+        /// 刷新所有页面到持久化层（由 Provider 实现）。此操作完全无锁。
+        /// </summary>
+        public void FlushAll()
+        {
+            // 获取当前页面数组的快照，避免遍历过程中数组引用变更
+            var pagesSnapshot = Volatile.Read(ref _pages);
+            int count = _pageCount;
+            for (int i = 0; i < count; i++)
+            {
+                _provider.Flush(pagesSnapshot[i], i);
+            }
+        }
+
+        /// <summary>
         /// 释放容器占用的资源，主要释放 ReaderWriterLockSlim。
         /// </summary>
         public void Dispose()
@@ -271,7 +332,7 @@ namespace Carrot.Memory
     /// <typeparam name="T">数据类型。</typeparam>
     public readonly ref struct PagedView<T>
     {
-        private readonly PagedMemory2D<T> _parent;
+        private readonly IReadonlyPagedMemory2D<T> _parent;
         private readonly Span<T> _rowSpan;
         private readonly Span2D<T> _colSpan2d;
         private readonly int _r, _c;
@@ -305,7 +366,7 @@ namespace Carrot.Memory
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal PagedView(PagedMemory2D<T> parent, int r, int c, int len)
+        internal PagedView(IReadonlyPagedMemory2D<T> parent, int r, int c, int len)
         {
             _parent = parent;
             _rowSpan = default;
