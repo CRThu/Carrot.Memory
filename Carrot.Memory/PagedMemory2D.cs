@@ -14,7 +14,7 @@ namespace Carrot.Memory
     public class PagedMemory2D<T>
     {
         private const int InitialPageCapacity = 16;
-        private readonly object _pageLock = new();
+        private readonly ReaderWriterLockSlim _rwLock = new();
         private Memory2D<T>[] _pages;
         private int _pageCount;
         private readonly int _shift;
@@ -63,22 +63,15 @@ namespace Carrot.Memory
         {
             if (pageIdx < _pageCount) return;
 
-            lock (_pageLock)
+            // 注意：调用者必须持有 _rwLock 的写锁
+            // 调整：不再采用翻倍策略，改为按需扩展到足以容纳当前 pageIdx
+            if (pageIdx >= _pages.Length)
             {
-                if (pageIdx < _pageCount) return;
-
-                if (pageIdx >= _pages.Length)
-                {
-                    int newSize = _pages.Length;
-                    while (pageIdx >= newSize)
-                    {
-                        newSize <<= 1;
-                    }
-
-                    var newPages = new Memory2D<T>[newSize];
-                    Array.Copy(_pages, newPages, _pageCount);
-                    Volatile.Write(ref _pages, newPages);
-                }
+                int newSize = pageIdx + 1;
+                var newPages = new Memory2D<T>[newSize];
+                Array.Copy(_pages, newPages, _pageCount);
+                Volatile.Write(ref _pages, newPages);
+            }
 
                 while (_pageCount <= pageIdx)
                 {
@@ -86,71 +79,96 @@ namespace Carrot.Memory
                     _pages[nextIndex] = _pageFactory(_pageSize, _width, nextIndex);
                     _pageCount++;
                 }
+        }
+
+        /// <summary>
+        /// 在指定位置设置单个元素。
+        /// </summary>
+        public void SetElement(int r, int c, T value)
+        {
+            if ((uint)c >= (uint)_width) ThrowArgumentException("列索引越界");
+            if (r < 0) ThrowArgumentException("行索引不能为负");
+
+            _rwLock.EnterWriteLock();
+            try
+            {
+                EnsurePageExists(r >> _shift);
+                var pages = Volatile.Read(ref _pages);
+                pages[r >> _shift].Span[r & _mask, c] = value;
+                
+                int targetHeight = r + 1;
+                if (targetHeight > _rowCount)
+                {
+                    Volatile.Write(ref _rowCount, targetHeight);
+                }
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
             }
         }
 
         /// <summary>
-        /// 向容器末尾添加一行数据。
+        /// 将二维数据块写入指定位置。
         /// </summary>
-        /// <param name="rowData">包含行数据的只读跨度，长度必须等于 <see cref="Width"/>。</param>
-        /// <exception cref="ArgumentException">当输入数据的长度与容器宽度不匹配时抛出。</exception>
-        public void AddRow(ReadOnlySpan<T> rowData)
+        /// <param name="r">起始行。</param>
+        /// <param name="c">起始列。</param>
+        /// <param name="data">待写入的数据块。</param>
+        public void SetBlock(int r, int c, ReadOnlySpan2D<T> data)
         {
-            if (rowData.Length != _width) ThrowArgumentException("行宽度不匹配");
-
-            int currentRowCount = _rowCount;
-            int pageIdx = currentRowCount >> _shift;
-            int rowInPage = currentRowCount & _mask;
-
-            EnsurePageExists(pageIdx);
-
-            var pages = Volatile.Read(ref _pages);
-            var span2d = pages[pageIdx].Span;
-            rowData.CopyTo(span2d.GetRowSpan(rowInPage));
-
-            Volatile.Write(ref _rowCount, currentRowCount + 1);
+            if (r < 0 || c < 0 || c + data.Width > _width) ThrowArgumentException("写入区域越界或非法");
+            
+            _rwLock.EnterWriteLock();
+            try
+            {
+                SetBlockInternal(r, c, data);
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
         }
 
-        /// <summary>
-        /// 向容器末尾批量添加多行数据。
-        /// </summary>
-        /// <param name="rowsData">包含多行数据的二维跨度，其宽度必须等于 <see cref="Width"/>。</param>
-        /// <exception cref="ArgumentException">当输入数据的列宽与容器宽度不匹配时抛出。</exception>
-        public void AddRows(ReadOnlySpan2D<T> rowsData)
+        private void SetBlockInternal(int r, int c, ReadOnlySpan2D<T> data)
         {
-            if (rowsData.Width != _width) ThrowArgumentException("列宽不匹配");
-
-            int rowsToAdd = rowsData.Height;
-            int sourceRowOffset = 0;
-            int currentRowCount = _rowCount;
-
-            while (rowsToAdd > 0)
+            int targetHeight = r + data.Height;
+            if (targetHeight > 0)
             {
-                int pageIdx = currentRowCount >> _shift;
-                int rowInPage = currentRowCount & _mask;
+                EnsurePageExists((targetHeight - 1) >> _shift);
+            }
 
-                EnsurePageExists(pageIdx);
+            int rowsLeft = data.Height;
+            int sourceRowOffset = 0;
+            int currentRow = r;
 
-                int canCopy = Math.Min(_pageSize - rowInPage, rowsToAdd);
+            while (rowsLeft > 0)
+            {
+                int pageIdx = currentRow >> _shift;
+                int rowInPage = currentRow & _mask;
+                int canCopy = Math.Min(_pageSize - rowInPage, rowsLeft);
+
                 var pages = Volatile.Read(ref _pages);
                 var targetSpan2d = pages[pageIdx].Span;
 
-                rowsData.Slice(sourceRowOffset, 0, canCopy, _width)
-                    .CopyTo(targetSpan2d.Slice(rowInPage, 0, canCopy, _width));
+                data.Slice(sourceRowOffset, 0, canCopy, data.Width)
+                    .CopyTo(targetSpan2d.Slice(rowInPage, c, canCopy, data.Width));
 
-                currentRowCount += canCopy;
-                Volatile.Write(ref _rowCount, currentRowCount);
+                currentRow += canCopy;
                 sourceRowOffset += canCopy;
-                rowsToAdd -= canCopy;
+                rowsLeft -= canCopy;
+            }
+
+            if (targetHeight > _rowCount)
+            {
+                Volatile.Write(ref _rowCount, targetHeight);
             }
         }
 
+
         /// <summary>
         /// 获取指定行号和列号的数据引用。
+        /// 注意：通过引用直接修改数据将绕过写锁保护。建议仅用于读取或性能敏感的批量操作。
         /// </summary>
-        /// <param name="r">行索引。</param>
-        /// <param name="c">列索引。</param>
-        /// <returns>指向数据的托管引用。</returns>
         public ref T this[int r, int c]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -158,10 +176,28 @@ namespace Carrot.Memory
             {
                 int rowCount = Volatile.Read(ref _rowCount);
                 if ((uint)r >= (uint)rowCount || (uint)c >= (uint)_width) ThrowIndexOutOfRangeException();
-                var page = Volatile.Read(ref _pages)[r >> _shift].Span;
-                return ref page[r & _mask, c];
+                var pages = Volatile.Read(ref _pages);
+                return ref pages[r >> _shift].Span[r & _mask, c];
             }
         }
+
+        /// <summary>
+        /// 在指定位置设置单行数据块（水平写入）。
+        /// </summary>
+        public void SetRow(int r, int c, ReadOnlySpan<T> data)
+        {
+            SetBlock(r, c, data.AsSpan2D(1, data.Length));
+        }
+
+        /// <summary>
+        /// 在指定位置设置单列数据块（垂直写入）。
+        /// </summary>
+        public void SetColumn(int r, int c, ReadOnlySpan<T> data)
+        {
+            SetBlock(r, c, data.AsSpan2D(data.Length, 1));
+        }
+
+
 
         /// <summary>
         /// 获取指定行中某一段的水平视图（Slice）。

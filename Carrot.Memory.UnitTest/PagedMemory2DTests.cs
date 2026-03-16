@@ -31,7 +31,7 @@ public class PagedMemory2DTests
         }
 
         // 执行批量插入
-        paged.AddRows(sourceData.AsSpan2D());
+        paged.SetBlock(paged.RowCount, 0, sourceData.AsSpan2D());
 
         // 验证基本属性
         Assert.AreEqual(totalRows, paged.RowCount);
@@ -60,7 +60,7 @@ public class PagedMemory2DTests
         {
             double[] row = new double[DefaultWidth];
             row[5] = i * 1.5; // 在第 5 列存储特征值
-            paged.AddRow(row);
+            paged.SetRow(paged.RowCount, 0, row);
         }
 
         // 目标：获取一个跨越物理页面边界的垂直切片
@@ -90,11 +90,10 @@ public class PagedMemory2DTests
         var paged = new PagedMemory2D<long>(DefaultWidth, PageSize);
         
         // 直接跳到第 2000 行写入（会自动触发多页分配）
-        // 我们通过 AddRows 模拟快速到达深层页面
-        paged.AddRows(new long[2000, DefaultWidth].AsSpan2D());
+        paged.SetBlock(0, 0, new long[2000, DefaultWidth].AsSpan2D());
         
         long[] targetRow = Enumerable.Range(0, DefaultWidth).Select(x => (long)x).ToArray();
-        paged.AddRow(targetRow); // 这是第 2000 行
+        paged.SetRow(paged.RowCount, 0, targetRow); // 这是第 2000 行
 
         // 在第 2000 行获取列索引 10 到 20 的切片
         var slice = paged.GetSlice(2000, 10, 10);
@@ -119,7 +118,7 @@ public class PagedMemory2DTests
         for (int i = 0; i < iterations; i++)
         {
             row.Fill(i);
-            paged.AddRow(row);
+            paged.SetRow(paged.RowCount, 0, row);
         }
 
         Assert.AreEqual(iterations, paged.RowCount);
@@ -132,7 +131,7 @@ public class PagedMemory2DTests
     public void ShouldThrowExceptionWhenAccessingOuterBoundariesInDeepPages()
     {
         var paged = new PagedMemory2D<byte>(DefaultWidth, PageSize);
-        paged.AddRows(new byte[1500, DefaultWidth].AsSpan2D());
+        paged.SetBlock(0, 0, new byte[1500, DefaultWidth].AsSpan2D());
 
         Assert.Throws<IndexOutOfRangeException>(() =>
         {
