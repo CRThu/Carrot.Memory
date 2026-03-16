@@ -1,57 +1,90 @@
-# Carrot.Memory
+# Carrot.Memory (V10.5)
 
-一个基于分页机制的高性能二维内存容器，支持动态行增长和极速的行列切片访问。
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-## 特性
+一个基于分页机制的高性能二维内存容器，专为大规模数据处理、多线程并发访问（MWMR）以及高安全性场景设计。
 
-- **分页存储**：使用分页机制管理底层内存，避免大面积连续内存分配。
-- **动态增长**：按需自动分配新页面，支持极大规模数据。
-- **零拷贝视图**：提供 `PagedView<T>` (ref struct)，支持对行（Slice）和列（Series）的无损切片访问。
-- **高性能**：利用位运算、内联优化和 `CommunityToolkit.HighPerformance` 提升处理速度。
+## 核心架构：双视图隔离
+
+为了在保证极致性能的同时提供物理层面的内存安全，Carrot.Memory 引入了**双视图隔离**机制：
+
+- **只读视图 (`IReadonlyPagedMemory2D<T>`)**：索引器通过 `ref readonly` 返回，在编译期杜绝任何误修改尝试。
+- **读写视图 (`IPagedMemory2D<T>`)**：提供 `ref T` 返回，支持高性能的原地修改与批量写入。
+
+## 核心特性
+
+- **分页存储**：使用分页机制管理底层内存，避免 LOH (Large Object Heap) 碎片，支持 2 的幂次页大小优化。
+- **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
+- **零拷贝视图**：提供 `ReadOnlyPagedView<T>` 与 `PagedView<T>`，支持对行（Row）和列（Column）的无损切片访问。
+- **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存或 **内存映射文件 (MMF)**。
+- **完全无锁刷新**：`FlushAll` 操作采用快照机制，在执行持久化时无需阻塞任何读写操作。
 
 ## 快速开始
 
 ### 1. 初始化容器
 
-初始化时通过 `width` 指定固定列宽，通过 `pageSize` 指定每页的行数（必须是 2 的幂）。
-
 ```csharp
 using Carrot.Memory;
 
 // 创建一个每行 100 列，每页 1024 行的容器
-var pagedMemory = new PagedMemory2D<double>(width: 100, pageSize: 1024);
+// 默认使用堆内存分配器 (DefaultHeapPageProvider)
+using var pagedMemory = new PagedMemory2D<int>(width: 100, pageSize: 1024);
 ```
 
-### 2. 添加数据
-
-支持单行添加或批量批量添加（基于 `ReadOnlySpan2D`）。
+### 2. 写入数据
 
 ```csharp
-// 添加单行
-double[] rowData = new double[100];
-pagedMemory.AddRow(rowData);
+// 单元素设置
+pagedMemory.SetElement(0, 0, 42);
 
-// 批量添加多行
-double[,] multiRows = new double[50, 100];
-pagedMemory.AddRows(multiRows.AsSpan2D());
+// 批量设置单行 (Row)
+int[] rowData = new int[100];
+pagedMemory.SetRow(5, 0, rowData);
+
+// 批量设置二维块 (Block)
+int[,] blockData = new int[10, 10];
+pagedMemory.SetBlock(10, 10, blockData.AsSpan2D());
 ```
 
-### 3. 数据访问
-
-支持通过索引器访问单个元素，或获取行/列切片。
+### 3. 数据访问与视图
 
 ```csharp
-// 索引访问
-ref double val = ref pagedMemory[0, 5];
+// 获取只读接口
+IReadonlyPagedMemory2D<int> readOnlyView = pagedMemory.AsReadOnly();
 
-// 获取行切片（第 10 行，第 5 列开始，长度 10）
-var rowSlice = pagedMemory.GetSlice(10, 5, 10);
-Span<double> span = rowSlice.AsSpan();
+// 编译错误：readOnlyView[0, 0] = 99; 
+ref readonly int val = ref readOnlyView[0, 0];
 
-// 获取跨页的列切片（第 500 行开始，第 5 列，垂直方向取 2000 个元素）
-var colSeries = pagedMemory.GetSeries(500, 5, 2000);
-double v = colSeries[1500]; // 跨越物理页面边界访问
+// 获取行视图 (RowView)
+var rowView = readOnlyView.GetRowView(row: 5, col: 0, len: 10);
+ReadOnlySpan<int> span = rowView.AsSpan();
+
+// 获取跨页的列视图 (ColumnView)
+// 支持垂直方向跨越多个物理页面进行统一访问
+var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
+int v = colView[1500]; 
 ```
+
+### 4. 自定义存储后端 (示例：接入 MMF)
+
+```csharp
+public class MmfPageProvider<T> : IPageProvider<T> {
+    public Memory2D<T> Create(int rows, int cols, int index) {
+        // 在此处实现磁盘映射逻辑
+        return ...;
+    }
+    public void Flush(Memory2D<T> page, int index) {
+        // 执行磁盘同步
+    }
+}
+```
+
+## 线程安全协议
+
+本库遵循 **MWMR (Multi-Writer Multi-Reader)** 协议：
+- **读取**：完全并发，支持 `ref readonly` 索引器与视图读取。
+- **写入**：受内置写锁保护，但在修改现有数据元素时（通过 `ref T`），应确保应用层的同步。
+- **扩容**：写入操作会自动触发原子扩容，对读取线程透明且安全。
 
 ## 许可证
 
