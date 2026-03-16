@@ -52,6 +52,25 @@ namespace Carrot.Memory
             _mask = _pageSize - 1;
             _pages = new Memory2D<T>[InitialPageCapacity];
             _provider = provider ?? new DefaultHeapPageProvider<T>();
+
+            // 加载持久化元数据
+            if (_provider is IPersistentMetadataProvider persistentProvider)
+            {
+                if (persistentProvider.TryLoadMetadata(out int savedRowCount, out int savedWidth, out int savedPageSize))
+                {
+                    if (savedWidth != _width || savedPageSize != _pageSize)
+                    {
+                        throw new InvalidOperationException("持久化元数据与容器配置不一致。");
+                    }
+                    _rowCount = savedRowCount;
+
+                    // 预加载已有的分页
+                    if (_rowCount > 0)
+                    {
+                        EnsurePageExists((_rowCount - 1) >> _shift);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -274,6 +293,12 @@ namespace Carrot.Memory
             for (int i = 0; i < count; i++)
             {
                 _provider.Flush(pagesSnapshot[i], i);
+            }
+
+            // 保存元数据
+            if (_provider is IPersistentMetadataProvider persistentProvider)
+            {
+                persistentProvider.SaveMetadata(Volatile.Read(ref _rowCount), _width, _pageSize);
             }
         }
 
