@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Numerics;
+using System.Threading;
 using CommunityToolkit.HighPerformance;
 
 namespace Carrot.Memory
@@ -14,7 +13,10 @@ namespace Carrot.Memory
     /// <typeparam name="T">存储的数据类型。</typeparam>
     public class PagedMemory2D<T>
     {
-        private readonly List<Memory2D<T>> _pages = new();
+        private const int InitialPageCapacity = 16;
+        private readonly object _pageLock = new();
+        private Memory2D<T>[] _pages;
+        private int _pageCount;
         private readonly int _shift;
         private readonly int _mask;
         private readonly int _pageSize;
@@ -26,7 +28,7 @@ namespace Carrot.Memory
         /// <summary>
         /// 获取当前容器已存储的总行数。
         /// </summary>
-        public int RowCount => _rowCount;
+        public int RowCount => Volatile.Read(ref _rowCount);
 
         /// <summary>
         /// 获取每一行的固定宽度。
@@ -50,6 +52,7 @@ namespace Carrot.Memory
             _pageSize = pageSize;
             _shift = BitOperations.TrailingZeroCount((uint)pageSize);
             _mask = _pageSize - 1;
+            _pages = new Memory2D<T>[InitialPageCapacity];
 
             // 默认实现：分配普通数组并转换为 Memory2D
             _pageFactory = pageFactory ?? ((rows, cols, index) => new T[rows * cols].AsMemory().AsMemory2D(rows, cols));
@@ -58,10 +61,31 @@ namespace Carrot.Memory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnsurePageExists(int pageIdx)
         {
-            while (pageIdx >= _pages.Count)
+            if (pageIdx < _pageCount) return;
+
+            lock (_pageLock)
             {
-                int nextIndex = _pages.Count;
-                _pages.Add(_pageFactory(_pageSize, _width, nextIndex));
+                if (pageIdx < _pageCount) return;
+
+                if (pageIdx >= _pages.Length)
+                {
+                    int newSize = _pages.Length;
+                    while (pageIdx >= newSize)
+                    {
+                        newSize <<= 1;
+                    }
+
+                    var newPages = new Memory2D<T>[newSize];
+                    Array.Copy(_pages, newPages, _pageCount);
+                    Volatile.Write(ref _pages, newPages);
+                }
+
+                while (_pageCount <= pageIdx)
+                {
+                    int nextIndex = _pageCount;
+                    _pages[nextIndex] = _pageFactory(_pageSize, _width, nextIndex);
+                    _pageCount++;
+                }
             }
         }
 
@@ -74,15 +98,17 @@ namespace Carrot.Memory
         {
             if (rowData.Length != _width) ThrowArgumentException("行宽度不匹配");
 
-            int pageIdx = _rowCount >> _shift;
-            int rowInPage = _rowCount & _mask;
+            int currentRowCount = _rowCount;
+            int pageIdx = currentRowCount >> _shift;
+            int rowInPage = currentRowCount & _mask;
 
             EnsurePageExists(pageIdx);
 
-            var span2d = _pages[pageIdx].Span;
+            var pages = Volatile.Read(ref _pages);
+            var span2d = pages[pageIdx].Span;
             rowData.CopyTo(span2d.GetRowSpan(rowInPage));
 
-            _rowCount++;
+            Volatile.Write(ref _rowCount, currentRowCount + 1);
         }
 
         /// <summary>
@@ -96,21 +122,24 @@ namespace Carrot.Memory
 
             int rowsToAdd = rowsData.Height;
             int sourceRowOffset = 0;
+            int currentRowCount = _rowCount;
 
             while (rowsToAdd > 0)
             {
-                int pageIdx = _rowCount >> _shift;
-                int rowInPage = _rowCount & _mask;
+                int pageIdx = currentRowCount >> _shift;
+                int rowInPage = currentRowCount & _mask;
 
                 EnsurePageExists(pageIdx);
 
                 int canCopy = Math.Min(_pageSize - rowInPage, rowsToAdd);
-                var targetSpan2d = _pages[pageIdx].Span;
+                var pages = Volatile.Read(ref _pages);
+                var targetSpan2d = pages[pageIdx].Span;
 
                 rowsData.Slice(sourceRowOffset, 0, canCopy, _width)
                     .CopyTo(targetSpan2d.Slice(rowInPage, 0, canCopy, _width));
 
-                _rowCount += canCopy;
+                currentRowCount += canCopy;
+                Volatile.Write(ref _rowCount, currentRowCount);
                 sourceRowOffset += canCopy;
                 rowsToAdd -= canCopy;
             }
@@ -127,9 +156,9 @@ namespace Carrot.Memory
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                if ((uint)r >= (uint)_rowCount || (uint)c >= (uint)_width) ThrowIndexOutOfRangeException();
-                // 使用 CollectionsMarshal 避免 List 内部的边界检查以提升性能
-                var page = CollectionsMarshal.AsSpan(_pages)[r >> _shift].Span;
+                int rowCount = Volatile.Read(ref _rowCount);
+                if ((uint)r >= (uint)rowCount || (uint)c >= (uint)_width) ThrowIndexOutOfRangeException();
+                var page = Volatile.Read(ref _pages)[r >> _shift].Span;
                 return ref page[r & _mask, c];
             }
         }
@@ -144,8 +173,9 @@ namespace Carrot.Memory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public PagedView<T> GetSlice(int row, int col, int len)
         {
-            if ((uint)row >= (uint)_rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
-            var page = CollectionsMarshal.AsSpan(_pages)[row >> _shift].Span;
+            int rowCount = Volatile.Read(ref _rowCount);
+            if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
+            var page = Volatile.Read(ref _pages)[row >> _shift].Span;
             return new PagedView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
         }
 
@@ -159,13 +189,14 @@ namespace Carrot.Memory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public PagedView<T> GetSeries(int row, int col, int len)
         {
-            if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)_rowCount) ThrowIndexOutOfRangeException();
+            int rowCount = Volatile.Read(ref _rowCount);
+            if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
 
             int pageRowsLeft = _pageSize - (row & _mask);
             // 如果在同一页内，使用高效的 Span2D 模式
             if (len <= pageRowsLeft)
             {
-                var span2d = CollectionsMarshal.AsSpan(_pages)[row >> _shift].Span;
+                var span2d = Volatile.Read(ref _pages)[row >> _shift].Span;
                 return new PagedView<T>(span2d.Slice(row & _mask, col, len, 1));
             }
 
