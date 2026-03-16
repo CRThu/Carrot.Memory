@@ -11,7 +11,7 @@ namespace Carrot.Memory
     /// 提供一个基于分页机制的二维内存容器，支持动态行增长和高性能的行列切片访问。
     /// </summary>
     /// <typeparam name="T">存储的数据类型。</typeparam>
-    public class PagedMemory2D<T>
+    public class PagedMemory2D<T> : IDisposable
     {
         private const int InitialPageCapacity = 16;
         private readonly ReaderWriterLockSlim _rwLock = new();
@@ -24,6 +24,7 @@ namespace Carrot.Memory
         private readonly Func<int, int, int, Memory2D<T>> _pageFactory;
 
         private int _rowCount = 0;
+        private bool _disposed;
 
         /// <summary>
         /// 获取当前容器已存储的总行数。
@@ -86,8 +87,8 @@ namespace Carrot.Memory
         /// </summary>
         public void SetElement(int r, int c, T value)
         {
+            if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
             if ((uint)c >= (uint)_width) ThrowArgumentException("列索引越界");
-            if (r < 0) ThrowArgumentException("行索引不能为负");
 
             _rwLock.EnterWriteLock();
             try
@@ -116,6 +117,7 @@ namespace Carrot.Memory
         /// <param name="data">待写入的数据块。</param>
         public void SetBlock(int r, int c, ReadOnlySpan2D<T> data)
         {
+            if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
             if (r < 0 || c < 0 || c + data.Width > _width) ThrowArgumentException("写入区域越界或非法");
             
             _rwLock.EnterWriteLock();
@@ -250,6 +252,16 @@ namespace Carrot.Memory
         private static void ThrowArgumentException(string msg) => throw new ArgumentException(msg);
 
         #endregion
+
+        /// <summary>
+        /// 释放容器占用的资源，主要释放 ReaderWriterLockSlim。
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _rwLock.Dispose();
+            _disposed = true;
+        }
     }
 
     /// <summary>
