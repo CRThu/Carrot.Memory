@@ -192,10 +192,10 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 获取指定行中某一段的水平可写视图（Slice）。
+        /// 获取指定行中某一段的水平可写视图（行视图）。
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PagedView<T> GetSlice(int row, int col, int len)
+        public PagedView<T> GetRowView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
@@ -204,9 +204,9 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 显式实现只读接口视图获取，返回只读视图。
+        /// 显式实现只读接口视图获取，返回只读行视图。
         /// </summary>
-        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetSlice(int row, int col, int len)
+        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetRowView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
@@ -215,10 +215,10 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 获取指定列中某一段的垂直可写视图（Series），支持跨页。
+        /// 获取指定列中某一段的垂直可写视图（列视图），支持跨页。
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PagedView<T> GetSeries(int row, int col, int len)
+        public PagedView<T> GetColumnView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
@@ -236,9 +236,9 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 显式实现只读接口视图获取，返回只读视图。
+        /// 显式实现只读接口视图获取，返回只读列视图。
         /// </summary>
-        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetSeries(int row, int col, int len)
+        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetColumnView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();

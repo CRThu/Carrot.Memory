@@ -83,7 +83,7 @@ namespace Carrot.Memory
         /// <exception cref="NotSupportedException">当视图不是单行切片时抛出。</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<T> AsSpan() =>
-            _mode == 0 ? _rowSpan : throw new NotSupportedException("仅行视图（GetSlice）可转 Span，列视图或跨页视图不支持此操作。");
+            _mode == 0 ? _rowSpan : throw new NotSupportedException("仅行视图（GetRowView）可转 Span，列视图或跨页视图不支持此操作。");
 
         [DoesNotReturn]
         private static void ThrowIndexOutOfRangeException() => throw new IndexOutOfRangeException("视图访问越界。");

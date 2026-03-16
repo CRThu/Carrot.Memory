@@ -22,11 +22,11 @@ public class ReadOnlyProtectionTests
         Assert.AreEqual(100, readOnly[0, 0]);
         
         // 验证切片读取
-        var slice = readOnly.GetSlice(0, 0, 1);
+        var slice = readOnly.GetRowView(0, 0, 1);
         Assert.AreEqual(100, slice[0]);
         
         // 验证系列读取
-        var series = readOnly.GetSeries(0, 0, 1);
+        var series = readOnly.GetColumnView(0, 0, 1);
         Assert.AreEqual(100, series[0]);
     }
 
@@ -36,11 +36,11 @@ public class ReadOnlyProtectionTests
         var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
         paged.SetElement(0, 0, 100);
 
-        PagedView<int> slice = paged.GetSlice(0, 0, 1);
+        PagedView<int> slice = paged.GetRowView(0, 0, 1);
         slice[0] = 200;
         Assert.AreEqual(200, paged[0, 0]);
 
-        PagedView<int> series = paged.GetSeries(0, 0, 1);
+        PagedView<int> series = paged.GetColumnView(0, 0, 1);
         series[0] = 300;
         Assert.AreEqual(300, paged[0, 0]);
     }

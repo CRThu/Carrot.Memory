@@ -72,7 +72,7 @@ public class PagedMemory2DTests
         int sliceLen = 100;
         int targetCol = 5;
 
-        var series = paged.GetSeries(startRow, targetCol, sliceLen);
+        var series = paged.GetColumnView(startRow, targetCol, sliceLen);
 
         Assert.AreEqual(sliceLen, series.Length);
         
@@ -96,7 +96,7 @@ public class PagedMemory2DTests
         paged.SetRow(paged.RowCount, 0, targetRow); // 这是第 2000 行
 
         // 在第 2000 行获取列索引 10 到 20 的切片
-        var slice = paged.GetSlice(2000, 10, 10);
+        var slice = paged.GetRowView(2000, 10, 10);
 
         Assert.AreEqual(10, slice.Length);
         Assert.AreEqual(10L, slice[0]);

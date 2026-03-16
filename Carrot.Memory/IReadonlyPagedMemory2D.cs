@@ -28,21 +28,21 @@ namespace Carrot.Memory
         ref readonly T this[int r, int c] { get; }
 
         /// <summary>
-        /// 获取指定行中某一段的水平只读视图（Slice）。
+        /// 获取指定行中某一段的水平只读视图（行视图）。
         /// </summary>
         /// <param name="row">起始行索引。</param>
         /// <param name="col">起始列索引。</param>
         /// <param name="len">截取长度。</param>
         /// <returns>对应的只读视图对象。</returns>
-        ReadOnlyPagedView<T> GetSlice(int row, int col, int len);
+        ReadOnlyPagedView<T> GetRowView(int row, int col, int len);
 
         /// <summary>
-        /// 获取指定列中某一段的垂直只读视图（Series），支持跨页。
+        /// 获取指定列中某一段的垂直只读视图（列视图），支持跨页。
         /// </summary>
         /// <param name="row">起始行索引。</param>
         /// <param name="col">列索引。</param>
         /// <param name="len">垂直截取长度。</param>
         /// <returns>对应的只读视图对象。</returns>
-        ReadOnlyPagedView<T> GetSeries(int row, int col, int len);
+        ReadOnlyPagedView<T> GetColumnView(int row, int col, int len);
     }
 }
