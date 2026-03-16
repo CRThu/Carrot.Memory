@@ -13,12 +13,5 @@ namespace Carrot.Memory
         /// <inheritdoc />
         public Memory2D<T> Create(int rows, int cols, int index) => 
             new T[rows * cols].AsMemory().AsMemory2D(rows, cols);
-
-        /// <summary>
-        /// 堆内存页面无需执行特殊的物理刷新操作。
-        /// </summary>
-        /// <param name="page">页面内存。</param>
-        /// <param name="index">页面索引。</param>
-        public void Flush(Memory2D<T> page, int index) { /* 堆内存由 GC 管理，无需物理刷新 */ }
     }
 }

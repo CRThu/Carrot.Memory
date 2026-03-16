@@ -54,9 +54,9 @@ namespace Carrot.Memory
             _provider = provider ?? new DefaultHeapPageProvider<T>();
 
             // 加载持久化元数据
-            if (_provider is IPersistentMetadataProvider persistentProvider)
+            if (_provider is IPersistentPageProvider<T> persistent)
             {
-                if (persistentProvider.TryLoadMetadata(out int savedRowCount, out int savedWidth, out int savedPageSize))
+                if (persistent.TryLoadMetadata(out int savedRowCount, out int savedWidth, out int savedPageSize))
                 {
                     if (savedWidth != _width || savedPageSize != _pageSize)
                     {
@@ -286,19 +286,15 @@ namespace Carrot.Memory
         /// <inheritdoc />
         public void FlushAll()
         {
-            // 获取当前页面数组的快照，避免遍历过程中数组引用变更
-            var pagesSnapshot = Volatile.Read(ref _pages);
-            // 确保逻辑边界不超出物理快照边界
-            int count = Math.Min(_pageCount, pagesSnapshot.Length);
-            for (int i = 0; i < count; i++)
+            if (_provider is IPersistentPageProvider<T> persistent)
             {
-                _provider.Flush(pagesSnapshot[i], i);
-            }
-
-            // 保存元数据
-            if (_provider is IPersistentMetadataProvider persistentProvider)
-            {
-                persistentProvider.SaveMetadata(Volatile.Read(ref _rowCount), _width, _pageSize);
+                var pagesSnapshot = Volatile.Read(ref _pages);
+                int count = Math.Min(_pageCount, pagesSnapshot.Length);
+                for (int i = 0; i < count; i++)
+                {
+                    persistent.Flush(pagesSnapshot[i], i);
+                }
+                persistent.SaveMetadata(Volatile.Read(ref _rowCount), _width, _pageSize);
             }
         }
 
@@ -308,6 +304,10 @@ namespace Carrot.Memory
         public void Dispose()
         {
             if (_disposed) return;
+            
+            // 释放前自动执行最后一次持久化
+            FlushAll();
+            
             _rwLock.Dispose();
             _disposed = true;
         }

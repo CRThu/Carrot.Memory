@@ -17,12 +17,5 @@ namespace Carrot.Memory
         /// <param name="index">页面的全局索引（从 0 开始）。</param>
         /// <returns>分配的 <see cref="Memory2D{T}"/> 对象。</returns>
         Memory2D<T> Create(int rows, int cols, int index);
-
-        /// <summary>
-        /// 将页面内容刷新（持久化）到存储介质。
-        /// </summary>
-        /// <param name="page">待刷新的页面内存。</param>
-        /// <param name="index">页面的全局索引。</param>
-        void Flush(Memory2D<T> page, int index);
     }
 }

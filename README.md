@@ -16,7 +16,8 @@
 - **分页存储**：使用分页机制管理底层内存，避免 LOH (Large Object Heap) 碎片，支持 2 的幂次页大小优化。
 - **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
 - **零拷贝视图**：提供 `ReadOnlyPagedView<T>` 与 `PagedView<T>`，支持对行（Row）和列（Column）的无损切片访问。
-- **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存或 **内存映射文件 (MMF)**。
+- **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存或 **磁盘二进制文件 (FilePersistence)**。
+- **持久化同步**：支持元数据 JSON 与二进制分页文件的自动同步与状态恢复。
 - **完全无锁刷新**：`FlushAll` 操作采用快照机制，在执行持久化时无需阻塞任何读写操作。
 
 ## 快速开始
@@ -65,18 +66,22 @@ var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
 int v = colView[1500]; 
 ```
 
-### 4. 自定义存储后端 (示例：接入 MMF)
+### 4. 数据持久化 (File Persistence)
+
+使用 `FilePersistentHeapProvider` 实现数据的自动分页存储与恢复：
 
 ```csharp
-public class MmfPageProvider<T> : IPageProvider<T> {
-    public Memory2D<T> Create(int rows, int cols, int index) {
-        // 在此处实现磁盘映射逻辑
-        return ...;
-    }
-    public void Flush(Memory2D<T> page, int index) {
-        // 执行磁盘同步
-    }
-}
+// 初始化持久化供应者，指定存储目录
+var provider = new FilePersistentHeapProvider<int>("my_database");
+
+// 创建容器时传入供应者，将自动加载已有元数据与数据页
+using var paged = new PagedMemory2D<int>(width: 10, pageSize: 1024, provider);
+
+// 写入数据
+paged.SetElement(10, 0, 123);
+
+// 手动持久化：同步所有内存页至磁盘，并更新 metadata.json
+paged.FlushAll();
 ```
 
 ## 线程安全协议
