@@ -101,6 +101,34 @@ paged.FlushAll(); // 强制执行 OS 物理页同步
 - **写入**：受内置写锁保护，但在修改现有数据元素时（通过 `ref T`），应确保应用层的同步。
 - **扩容**：写入操作会自动触发原子扩容，对读取线程透明且安全。
 
+## 性能表现 (Performance)
+
+以下是在 Windows 环境下对 `Carrot.Memory` 进行的性能基准测试结果。
+
+**测试环境：**
+- **硬件环境**：Intel Core i5-6400 CPU 2.70GHz (Skylake)
+- **平台版本**：.NET 10.0.3 / Windows 10
+- **分页规模**：1,024 行 (2^10)，单次 Ops 操作涉及 10,240,000 个元素
+- **对比目标**：
+  - **Baseline**: 原生 `int[,]` 二维数组。
+  - **Heap Mode**: `PagedMemory2D` + `DefaultHeapPageProvider`。
+  - **MMF Mode**: `PagedMemory2D` + `MmfPageProvider` (在 OS Page Cache 命中的热状态下)。
+
+| 测试维度 (10M Ops) | Array2D (ms) | PagedHeap (ms) | MMF Mode (ms) | 结论 |
+| :--- | :---: | :---: | :---: | :--- |
+| **顺序行访问 (Row Access)** | 13.43 | 5.42 | 5.40 | **Paged 胜出** (~2.5x 提速，受益于 Span 遍历优化) |
+| **随机索引访问 (Random Access)** | 3.83 | 4.53 | - | **Array 略快** (Paged 存在寻址与位运算开销) |
+| **大块数据拷贝 (Block Transfer)** | 22.42 | 8.65 | - | **Paged 胜出** (~2.6x 提速，局部性表现更佳) |
+| **页内列访问 (Col InPage)** | 7.29 | 7.78 | 2.88 | **MMF 胜出** (页内列访问 MMF 具有极高性能) |
+| **全量列遍历 (Full Col)** | 104.61 | 406.39 | 364.87 | **Array 胜出** (跨页逻辑存在接口跳转开销) |
+
+**数据解读：**
+1. **极致吞吐**：在顺序遍历场景下，`PagedMemory2D` 通过 `GetRowView().AsSpan()` 暴露连续内存，性能优于原生 .NET 二维数组，因为后者在每个索引访问上都有受限的边界检查优化。
+2. **MMF 零损耗**：在数据预热后（Page Cache 命中），`MMF Mode` 的访问速度与堆内存（Heap Mode）完全持平，甚至在页内列访问等场景下表现更优。
+3. **权衡取舍**：列访问在跨物理页时（Column Access）由于涉及接口回调和位移计算，性能会有所下降。对于极致性能要求的列式处理，建议按页分段获取 Span 处理。
+4. **超大规模优势**：PagedMemory 的真正优势在于能够打破单体大对象（LOH）限制，减轻 GC 堆压力，并支持透明的磁盘持久化扩展。
+
+
 ## 许可证
 
 Apache License 2.0
