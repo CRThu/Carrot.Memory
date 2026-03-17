@@ -30,37 +30,55 @@ namespace Carrot.Memory
         public override unsafe Memory2D<T> Create(int rows, int cols, int index)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(MmfPageProvider<T>));
-            if (_pages.ContainsKey(index)) return Memory2D<T>.Empty; // 不应重复创建
+            if (_pages.ContainsKey(index)) return Memory2D<T>.Empty;
 
             string pagePath = Path.Combine(_rootPath, $"page_{index}.dat");
             long bytesNeeded = (long)rows * cols * sizeof(T);
 
-            // 确保文件存在并扩容到预定大小
-            // 使用 FileStream 预分配空间可以减少碎片并提高 MMF 稳定性
-            using (var fs = ArrayPoolFileStream(pagePath, bytesNeeded)) { }
+            // 1. 预扩容与对齐检查：确保物理文件大小与逻辑参数严格匹配
+            EnsureFilePrepared(pagePath, bytesNeeded);
 
+            // 2. 映射内存
             var mmf = MemoryMappedFile.CreateFromFile(pagePath, FileMode.Open, null, bytesNeeded, MemoryMappedFileAccess.ReadWrite);
             var accessor = mmf.CreateViewAccessor(0, bytesNeeded, MemoryMappedFileAccess.ReadWrite);
 
-            byte* ptr = null;
-            accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
-            
-            // 包装为 Memory2D
-            var manager = new UnmanagedMemoryManager<T>((T*)ptr, rows * cols);
-            var memory2d = manager.Memory.AsMemory2D(rows, cols);
+            try
+            {
+                byte* ptr = null;
+                accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                
+                var manager = new UnmanagedMemoryManager<T>((T*)ptr, rows * cols);
+                var memory2d = manager.Memory.AsMemory2D(rows, cols);
 
-            _pages[index] = (mmf, accessor);
-            return memory2d;
+                _pages[index] = (mmf, accessor);
+                return memory2d;
+            }
+            catch
+            {
+                accessor.Dispose();
+                mmf.Dispose();
+                throw;
+            }
         }
 
-        private static FileStream ArrayPoolFileStream(string path, long length)
+        private static void EnsureFilePrepared(string path, long expectedLength)
         {
-            var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
-            if (fs.Length < length)
+            if (File.Exists(path))
             {
-                fs.SetLength(length);
+                var currentLength = new FileInfo(path).Length;
+                if (currentLength != expectedLength)
+                {
+                    // 严格防御：若物理大小不符，说明数据布局已损坏或配置发生了漂移
+                    // 直接抛出异常以保护用户数据不被静默截断或填充
+                    throw new IOException($"数据页面文件大小校验失败。路径: {path}, 物理大小: {currentLength}, 预期大小: {expectedLength}。这通常意味着持久化配置已更改或文件遭受损坏。");
+                }
             }
-            return fs;
+            else
+            {
+                // 仅在创建新页面时进行预扩容
+                using var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite);
+                fs.SetLength(expectedLength);
+            }
         }
 
         /// <summary>
@@ -70,7 +88,11 @@ namespace Carrot.Memory
         {
             if (_pages.TryGetValue(index, out var entry))
             {
-                entry.Accessor.Flush();
+                try
+                {
+                    entry.Accessor.Flush();
+                }
+                catch (ObjectDisposedException) { }
             }
         }
 
@@ -81,14 +103,23 @@ namespace Carrot.Memory
         {
             if (_disposed) return;
 
-            foreach (var entry in _pages.Values)
+            lock (_pages)
             {
-                entry.Accessor.SafeMemoryMappedViewHandle.ReleasePointer();
-                entry.Accessor.Dispose();
-                entry.Mmf.Dispose();
+                if (_disposed) return;
+                _disposed = true;
+
+                foreach (var (mmf, accessor) in _pages.Values)
+                {
+                    try
+                    {
+                        accessor.SafeMemoryMappedViewHandle.ReleasePointer();
+                        accessor.Dispose();
+                        mmf.Dispose();
+                    }
+                    catch { /* 忽略释放时的异常，确保所有句柄都能被尝试释放 */ }
+                }
+                _pages.Clear();
             }
-            _pages.Clear();
-            _disposed = true;
         }
     }
 }

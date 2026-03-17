@@ -9,9 +9,9 @@
 - **分页存储**：使用分页机制管理底层内存，避免 LOH (Large Object Heap) 碎片，支持 2 的幂次页大小优化。
 - **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
 - **零拷贝视图**：提供 `ReadOnlyPagedView<T>` 与 `PagedView<T>`，支持对行（Row）和列（Column）的无损切片访问。
-- **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存或 **磁盘二进制文件 (FilePersistence)**。
+- **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存、**磁盘二进制文件 (Heap-Cache)** 或 **内存映射文件 (MMF)**。
 - **持久化同步**：支持元数据 JSON 与二进制分页文件的自动同步与状态恢复。
-- **完全无锁刷新**：`FlushAll` 操作采用快照机制，在执行持久化时无需阻塞任何读写操作。
+- **零拷贝映射 (MMF)**：`MmfPageProvider` 通过非托管内存管理器将磁盘文件直接映射为容器内存，实现极致的 I/O 吞吐。
 
 ## 快速开始
 
@@ -59,22 +59,39 @@ var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
 int v = colView[1500]; 
 ```
 
-### 4. 数据持久化 (File Persistence)
+### 4. 数据持久化与高性能存储
 
-使用 `FilePersistentHeapProvider` 实现数据的自动分页存储与恢复：
+本项目提供两种主要的持久化方案，均支持元数据（Metadata）的自动恢复：
+
+#### A. 堆缓存模式 (Heap-Cache Mode)
+使用 `FilePersistentHeapProvider`。数据驻留在托管堆中作为高速缓存，通过 `FlushAll()` 将脏页同步到磁盘。适用于常规持久化需求。
 
 ```csharp
-// 初始化持久化供应者，指定存储目录
+// 初始化堆缓存持久化供应者
 var provider = new FilePersistentHeapProvider<int>("my_database");
 
-// 创建容器时传入供应者，将自动加载已有元数据与数据页
+// 创建容器时传入供应者，将自动加载已有元数据
 using var paged = new PagedMemory2D<int>(width: 10, pageSize: 1024, provider);
 
-// 写入数据
-paged.SetElement(10, 0, 123);
-
-// 手动持久化：同步所有内存页至磁盘，并更新 metadata.json
+// 写入后手动持久化
 paged.FlushAll();
+```
+
+#### B. 存储映射模式 (MMF Mode)
+使用 `MmfPageProvider`。利用操作系统内存映射（Memory-Mapped Files）技术，将磁盘文件直接视为内存。
+
+- **优势**：无内存拷贝开销、支持处理远超 RAM 大小的海量数据、系统崩溃后数据更安全。
+- **限制**：仅支持 `unmanaged` 类型。
+
+```csharp
+// 初始化 MMF 供应者
+var provider = new MmfPageProvider<int>("mmf_data");
+
+// 容器操作直接作用于磁盘映射的虚拟内存
+using var paged = new PagedMemory2D<int>(width: 10, pageSize: 1024, provider);
+
+paged.SetElement(5, 5, 999);
+paged.FlushAll(); // 强制执行 OS 物理页同步
 ```
 
 ## 线程安全协议
