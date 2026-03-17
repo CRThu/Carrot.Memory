@@ -299,7 +299,7 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 释放容器占用的资源，主要释放 ReaderWriterLockSlim。
+        /// 释放容器占用的资源，主要释放 ReaderWriterLockSlim 及 Provider 句柄。
         /// </summary>
         public void Dispose()
         {
@@ -309,6 +309,13 @@ namespace Carrot.Memory
             FlushAll();
             
             _rwLock.Dispose();
+
+            // 若供应者持有非托管资源（如 MmfPageProvider），则执行释放
+            if (_provider is IDisposable disposableProvider)
+            {
+                disposableProvider.Dispose();
+            }
+
             _disposed = true;
         }
     }

@@ -1,15 +1,8 @@
-# Carrot.Memory (V10.5)
+# Carrot.Memory
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 一个基于分页机制的高性能二维内存容器，专为大规模数据处理、多线程并发访问（MWMR）以及高安全性场景设计。
-
-## 核心架构：双视图隔离
-
-为了在保证极致性能的同时提供物理层面的内存安全，Carrot.Memory 引入了**双视图隔离**机制：
-
-- **只读视图 (`IReadonlyPagedMemory2D<T>`)**：索引器通过 `ref readonly` 返回，在编译期杜绝任何误修改尝试。
-- **读写视图 (`IPagedMemory2D<T>`)**：提供 `ref T` 返回，支持高性能的原地修改与批量写入。
 
 ## 核心特性
 
