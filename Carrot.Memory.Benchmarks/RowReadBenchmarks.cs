@@ -50,7 +50,7 @@ namespace Carrot.Memory.Benchmarks
             if (Directory.Exists(_mmfPath)) try { Directory.Delete(_mmfPath, true); } catch { }
         }
 
-        [Benchmark(Baseline = true)]
+        [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.TotalElements)]
         public long Array_Row_Sum()
         {
             long sum = 0;
@@ -59,7 +59,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark]
+        [Benchmark(OperationsPerInvoke = BenchmarkConfig.TotalElements)]
         public long Heap_Row_Sum()
         {
             long sum = 0;
@@ -71,7 +71,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark]
+        [Benchmark(OperationsPerInvoke = BenchmarkConfig.TotalElements)]
         public long MMF_Row_Sum()
         {
             long sum = 0;

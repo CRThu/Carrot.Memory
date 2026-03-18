@@ -55,7 +55,7 @@ namespace Carrot.Memory.Benchmarks
 
         #region InPage
 
-        [Benchmark, BenchmarkCategory("InPage")]
+        [Benchmark(OperationsPerInvoke = InPageLimit * _width), BenchmarkCategory("InPage")]
         public long Array_Col_InPage()
         {
             long sum = 0;
@@ -64,7 +64,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark, BenchmarkCategory("InPage")]
+        [Benchmark(OperationsPerInvoke = InPageLimit * _width), BenchmarkCategory("InPage")]
         public long Heap_Col_InPage()
         {
             long sum = 0;
@@ -76,7 +76,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark, BenchmarkCategory("InPage")]
+        [Benchmark(OperationsPerInvoke = InPageLimit * _width), BenchmarkCategory("InPage")]
         public long MMF_Col_InPage()
         {
             long sum = 0;
@@ -92,7 +92,7 @@ namespace Carrot.Memory.Benchmarks
 
         #region CrossPage
 
-        [Benchmark, BenchmarkCategory("CrossPage")]
+        [Benchmark(OperationsPerInvoke = (CrossPageEnd - CrossPageStart) * _width), BenchmarkCategory("CrossPage")]
         public long Array_Col_CrossPage()
         {
             long sum = 0;
@@ -101,7 +101,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark, BenchmarkCategory("CrossPage")]
+        [Benchmark(OperationsPerInvoke = (CrossPageEnd - CrossPageStart) * _width), BenchmarkCategory("CrossPage")]
         public long Heap_Col_CrossPage()
         {
             long sum = 0;
@@ -114,7 +114,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark, BenchmarkCategory("CrossPage")]
+        [Benchmark(OperationsPerInvoke = (CrossPageEnd - CrossPageStart) * _width), BenchmarkCategory("CrossPage")]
         public long MMF_Col_CrossPage()
         {
             long sum = 0;
@@ -131,7 +131,7 @@ namespace Carrot.Memory.Benchmarks
 
         #region Full
 
-        [Benchmark(Baseline = true), BenchmarkCategory("Full")]
+        [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.TotalElements), BenchmarkCategory("Full")]
         public long Array_Col_Full()
         {
             long sum = 0;
@@ -140,7 +140,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark, BenchmarkCategory("Full")]
+        [Benchmark(OperationsPerInvoke = BenchmarkConfig.TotalElements), BenchmarkCategory("Full")]
         public long Heap_Col_Full()
         {
             long sum = 0;
@@ -152,7 +152,7 @@ namespace Carrot.Memory.Benchmarks
             return sum;
         }
 
-        [Benchmark, BenchmarkCategory("Full")]
+        [Benchmark(OperationsPerInvoke = BenchmarkConfig.TotalElements), BenchmarkCategory("Full")]
         public long MMF_Col_Full()
         {
             long sum = 0;

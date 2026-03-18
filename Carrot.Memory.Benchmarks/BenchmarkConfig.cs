@@ -10,6 +10,7 @@ namespace Carrot.Memory.Benchmarks
         public const int Cols = 8192;
         public const int PageSize = 8192; // 256MB per page
         public const int TotalRows = 32768; // 4 Pages = 1GB
+        public const int TotalElements = TotalRows * Cols; // 268,435,456
 
         public BenchmarkConfig()
         {

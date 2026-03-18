@@ -46,7 +46,7 @@ namespace Carrot.Memory.Benchmarks
             if (Directory.Exists(_mmfPath)) try { Directory.Delete(_mmfPath, true); } catch { }
         }
 
-        [Benchmark(Baseline = true)]
+        [Benchmark(Baseline = true, OperationsPerInvoke = BlockSize * BlockSize)]
         public void Array_SetBlock()
         {
             for (int r = 0; r < BlockSize; r++)
@@ -54,13 +54,13 @@ namespace Carrot.Memory.Benchmarks
                     _baselineArray[r, c] = _sourceBlock[r, c];
         }
 
-        [Benchmark]
+        [Benchmark(OperationsPerInvoke = BlockSize * BlockSize)]
         public void Heap_SetBlock()
         {
             _heapMemory.SetBlock(0, 0, _sourceBlock.AsSpan2D());
         }
 
-        [Benchmark]
+        [Benchmark(OperationsPerInvoke = BlockSize * BlockSize)]
         public void MMF_SetBlock()
         {
             _mmfMemory.SetBlock(0, 0, _sourceBlock.AsSpan2D());
