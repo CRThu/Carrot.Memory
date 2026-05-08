@@ -214,62 +214,46 @@ namespace Carrot.Memory
         /// 获取指定行中某一段的水平可写视图（行视图）。
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PagedView<T> GetRowView(int row, int col, int len)
+        public PagedRowView<T> GetRowView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
             var page = Volatile.Read(ref _pages)[row >> _shift].Span;
-            return new PagedView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
+            return new PagedRowView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
         }
 
         /// <summary>
         /// 显式实现只读接口视图获取，返回只读行视图。
         /// </summary>
-        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetRowView(int row, int col, int len)
+        ReadOnlyPagedRowView<T> IReadonlyPagedMemory2D<T>.GetRowView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
             var page = Volatile.Read(ref _pages)[row >> _shift].Span;
-            return new ReadOnlyPagedView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
+            return new ReadOnlyPagedRowView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
         }
 
         /// <summary>
         /// 获取指定列中某一段的垂直可写视图（列视图），支持跨页。
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PagedView<T> GetColumnView(int row, int col, int len)
+        public PagedColumnView<T> GetColumnView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
 
-            int pageRowsLeft = _pageSize - (row & _mask);
-            // 如果在同一页内，使用高效的 Span2D 模式
-            if (len <= pageRowsLeft)
-            {
-                var span2d = Volatile.Read(ref _pages)[row >> _shift].Span;
-                return new PagedView<T>(span2d.Slice(row & _mask, col, len, 1));
-            }
-
-            // 跨页则降级到 PagedParent 模式
-            return new PagedView<T>(this, row, col, len);
+            return new PagedColumnView<T>(this, row, col, len);
         }
 
         /// <summary>
         /// 显式实现只读接口视图获取，返回只读列视图。
         /// </summary>
-        ReadOnlyPagedView<T> IReadonlyPagedMemory2D<T>.GetColumnView(int row, int col, int len)
+        ReadOnlyPagedColumnView<T> IReadonlyPagedMemory2D<T>.GetColumnView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
 
-            int pageRowsLeft = _pageSize - (row & _mask);
-            if (len <= pageRowsLeft)
-            {
-                var span2d = Volatile.Read(ref _pages)[row >> _shift].Span;
-                return new ReadOnlyPagedView<T>(span2d.Slice(row & _mask, col, len, 1));
-            }
-
-            return new ReadOnlyPagedView<T>(this, row, col, len);
+            return new ReadOnlyPagedColumnView<T>(this, row, col, len);
         }
 
         #region Throw Helpers

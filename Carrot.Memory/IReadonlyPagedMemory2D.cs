@@ -34,7 +34,7 @@ namespace Carrot.Memory
         /// <param name="col">起始列索引。</param>
         /// <param name="len">截取长度。</param>
         /// <returns>对应的只读视图对象。</returns>
-        ReadOnlyPagedView<T> GetRowView(int row, int col, int len);
+        ReadOnlyPagedRowView<T> GetRowView(int row, int col, int len);
 
         /// <summary>
         /// 获取指定列中某一段的垂直只读视图（列视图），支持跨页。
@@ -43,6 +43,6 @@ namespace Carrot.Memory
         /// <param name="col">列索引。</param>
         /// <param name="len">垂直截取长度。</param>
         /// <returns>对应的只读视图对象。</returns>
-        ReadOnlyPagedView<T> GetColumnView(int row, int col, int len);
+        ReadOnlyPagedColumnView<T> GetColumnView(int row, int col, int len);
     }
 }

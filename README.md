@@ -8,7 +8,7 @@
 
 - **分页存储**：使用分页机制管理底层内存，避免 LOH (Large Object Heap) 碎片，支持 2 的幂次页大小优化。
 - **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
-- **零拷贝视图**：提供 `ReadOnlyPagedView<T>` 与 `PagedView<T>`，支持对行（Row）和列（Column）的无损切片访问。
+- **零拷贝视图**：提供 `PagedRowView<T>` / `PagedColumnView<T>` 及其只读版本，支持对行（Row）和列（Column）的高性能无损切片访问。
 - **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存、**磁盘二进制文件 (Heap-Cache)** 或 **内存映射文件 (MMF)**。
 - **持久化同步**：支持元数据 JSON 与二进制分页文件的自动同步与状态恢复。
 - **零拷贝映射 (MMF)**：`MmfPageProvider` 通过非托管内存管理器将磁盘文件直接映射为容器内存，实现极致的 I/O 吞吐。
@@ -49,12 +49,12 @@ IReadonlyPagedMemory2D<int> readOnlyView = pagedMemory.AsReadOnly();
 // 编译错误：readOnlyView[0, 0] = 99; 
 ref readonly int val = ref readOnlyView[0, 0];
 
-// 获取行视图 (RowView)
+// 获取行视图 (ReadOnlyPagedRowView)
 var rowView = readOnlyView.GetRowView(row: 5, col: 0, len: 10);
 ReadOnlySpan<int> span = rowView.AsSpan();
 
-// 获取跨页的列视图 (ColumnView)
-// 支持垂直方向跨越多个物理页面进行统一访问
+// 获取跨页的列视图 (ReadOnlyPagedColumnView)
+// 封装了行列索引寻址逻辑，支持垂直方向跨越多个物理页面进行统一访问
 var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
 int v = colView[1500]; 
 ```

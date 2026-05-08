@@ -81,7 +81,7 @@ public class BasicTests
         var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
         paged.SetElement(0, 0, 100);
 
-        PagedView<int> view = paged.GetRowView(0, 0, 1);
+        PagedRowView<int> view = paged.GetRowView(0, 0, 1);
         view[0] = 200;
         
         Assert.AreEqual(200, paged[0, 0]);

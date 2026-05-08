@@ -80,19 +80,5 @@ public class SafetyTests
         catch (ArgumentException) { }
     }
 
-    [TestMethod]
-    public void GetRowView_AsSpanFromColumnView_ShouldThrowNotSupportedException()
-    {
-        var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
-        paged.SetElement(0, 0, 1);
-        
-        var colView = paged.GetColumnView(0, 0, 1);
-        
-        try
-        {
-            colView.AsSpan();
-            Assert.Fail("Should have thrown NotSupportedException");
-        }
-        catch (NotSupportedException) { }
-    }
+
 }
