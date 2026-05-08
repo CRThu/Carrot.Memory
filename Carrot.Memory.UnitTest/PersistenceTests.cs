@@ -45,7 +45,7 @@ namespace Carrot.Memory.UnitTest
             // 阶段 1：创建容器 A，写入数据并持久化
             {
                 var provider = new FilePersistentHeapProvider<int>(_currentTestPath);
-                using var pagedA = new PagedMemory2D<int>(Width, PageSize, provider);
+                using var pagedA = new PagedMemory2D<int>(Width, PageSize, provider, _currentTestPath);
                 
                 pagedA.SetElement(0, 0, 123);
                 pagedA.SetElement(PageSize + 5, 2, 456);
@@ -59,7 +59,7 @@ namespace Carrot.Memory.UnitTest
             // 阶段 2：创建容器 B，指向相同路径，验证自动恢复
             {
                 var provider = new FilePersistentHeapProvider<int>(_currentTestPath);
-                using var pagedB = new PagedMemory2D<int>(Width, PageSize, provider);
+                using var pagedB = new PagedMemory2D<int>(Width, PageSize, provider, _currentTestPath);
 
                 // 验证 RowCount 恢复
                 Assert.AreEqual(PageSize + 6, pagedB.RowCount, "RowCount 恢复失败");
@@ -77,7 +77,7 @@ namespace Carrot.Memory.UnitTest
             // 阶段 1：写入原始配置
             {
                 var provider = new FilePersistentHeapProvider<int>(_currentTestPath);
-                using var pagedA = new PagedMemory2D<int>(Width, PageSize, provider);
+                using var pagedA = new PagedMemory2D<int>(Width, PageSize, provider, _currentTestPath);
                 pagedA.Commit();
             }
 
@@ -87,7 +87,7 @@ namespace Carrot.Memory.UnitTest
                 bool caught = false;
                 try
                 {
-                    using var pagedB = new PagedMemory2D<int>(Width + 1, PageSize, provider);
+                    using var pagedB = new PagedMemory2D<int>(Width + 1, PageSize, provider, _currentTestPath);
                 }
                 catch (InvalidOperationException)
                 {

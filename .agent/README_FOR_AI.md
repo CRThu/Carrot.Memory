@@ -27,26 +27,21 @@
 - **命名规范**：视图方法统一命名为 `GetRowView` 和 `GetColumnView` 以提升可读性。
 
 ### 3. 持久化扩展 (Persistence Extension)
-通过 `IPersistentPageProvider<T>` 协议实现状态同步：
-- **职责清晰**：该接口统一管理物理页刷新（Flush）与容器元数据（Metadata）的保存还原。
-- **接口集成**：`PagedMemory2D` 在构造时通过类型检测自动恢复逻辑行数，在 `Commit()` 时同步数据与状态。
-- **高效零开销**：对于非持久化供应者（如默认堆分配），`Commit()` 会跳过持久化逻辑，仅在必要时抛出异常。
-- **原子性与顺序**：保证“先数据页、后元数据”的顺序。元数据保存采用原子写入策略（.tmp 转换），确保系统崩溃重启后逻辑状态不损坏。
+通过 **能力接口 + 组合模式** 实现状态同步：
+- **职责解耦**：`IPersistentPageProvider<T>` 仅负责物理页刷新（Flush）。元数据管理由 `MetadataManager` 静态类统一处理。
+- **状态加载**：`PagedMemory2D` 构造函数直接调用 `MetadataManager.Load` 从 `rootPath` 恢复逻辑行数，不再依赖 Provider 提供加载逻辑。
+- **原子提交**：`Commit()` 方法协调 `Provider.Flush()` 与 `MetadataManager.Save()`。元数据保存采用原子写入策略（.tmp 覆盖），确保系统崩溃重启后逻辑状态不损坏。
 - **生命周期保障**：`Dispose` 时会自动调用 `Commit()`，确保即使未手动同步，数据也能在容器关闭时安全入盘。
-- **类型约束**：虽然接口本身不强制 `unmanaged`，但基于二进制实现的供应者（如文件持久化）应自行施加约束。
 
 ### 4. MMF 存储协议 (Memory-Mapped Storage Protocol)
 `MmfPageProvider<T>` 采用超高性能的进程外持久化方案：
 - **零拷贝映射**：利用 `UnmanagedMemoryManager<T>` 将非托管内存直接暴露为 `Memory2D<T>`，所有写操作直连 OS 虚拟内存页，无需内存/磁盘间反复拷贝。
-- **预扩容策略**：创建页面时会根据 `pageSize * width * sizeof(T)` 自动调用 `fs.SetLength` 进行物理扩容，防止映射视图越界并保证物理连续性。
-- **显式同步**：虽然 OS 会自动定时刷盘，但 `Flush` 调用会强制执行视图同步（`MemoryMappedViewAccessor.Flush`），确保高优先级数据的持久性。
-- **句柄管理**：页面句柄由 Provider 统一管理并伴随容器 `Dispose` 释放。
+- **预扩容策略**：创建页面时会根据物理计算进行预扩容，并执行严格的文件大小校验，防止数据布局损坏。
+- **显式同步**：`Flush` 调用会强制执行视图同步（`MemoryMappedViewAccessor.Flush`），确保高优先级数据的持久性。
 
 ### 5. 工厂初始化协议 (Factory Initialization Protocol)
 `PagedMemory.Open<T>` 是推荐的生命周期管理方式：
-- **职责分工**：
-  - **探测 (Probe)**：检查目标路径是否存在 `metadata.json`。
-  - **恢复 (Restore)**：若存在元数据，则解析 `ProviderType`、`Width` 和 `PageSize`，自动实例化正确的供应者。
-  - **新建 (Create)**：若不存在，则根据 `PagedMemoryOptions`（或默认值）初始化，默认使用 `MMF` 策略。
-- **错误处理**：对于元数据损坏或 I/O 错误，必须抛出 `InvalidOperationException` 并包含原始路径信息。
-- **向后兼容**：元数据结构变更需保证旧版本字段的可选性。
+- **探测 (Probe)**：通过 `MetadataManager.Load` 探测目标路径。
+- **恢复 (Restore)**：若存在元数据，根据其记录的 `ProviderType` 自动实例化正确的供应者，并委托 `PagedMemory2D` 恢复状态。
+- **新建 (Create)**：若不存在，根据 `PagedMemoryOptions` 初始化，默认使用 `MMF` 策略。
+- **灵活性**：工厂仅负责 Provider 的选型，核心逻辑状态的维护由容器主类闭环处理。

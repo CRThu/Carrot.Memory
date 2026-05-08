@@ -9,9 +9,8 @@
 - **分页存储**：使用分页机制管理底层内存，避免 LOH (Large Object Heap) 碎片，支持 2 的幂次页大小优化。
 - **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
 - **零拷贝视图**：提供 `PagedRowView<T>` / `PagedColumnView<T>` 及其只读版本，支持对行（Row）和列（Column）的高性能无损切片访问。
-- **存储扩展 (Provider)**：通过 `IPageProvider<T>` 接口，支持将后端映射到堆内存、非托管内存、**磁盘二进制文件 (Heap-Cache)** 或 **内存映射文件 (MMF)**。
-- **持久化同步**：支持元数据 JSON 与二进制分页文件的自动同步与状态恢复。
-- **零拷贝映射 (MMF)**：`MmfPageProvider` 通过非托管内存管理器将磁盘文件直接映射为容器内存，实现极致的 I/O 吞吐。
+- **解耦持久化**：采用 **Provider + MetadataManager** 的组合模式。Provider 专注于物理 IO（MMF、文件流等），`MetadataManager` 统一处理 JSON 元数据持久化。
+- **原子提交**：通过 `Commit()` 方法（`IPersistable` 接口）执行“物理页刷新 + 临时文件重命名”策略，确保元数据与数据页同步的原子性。
 
 ## 快速开始
 
@@ -20,6 +19,8 @@
 ```csharp
 using Carrot.Memory;
 
+// 推荐方式：直接通过 PagedMemory 工厂打开目录
+// 工厂会自动探测 metadata.json 并恢复对应的 Provider (MMF 或 FileHeap) 与容器规模
 using var pagedMemory = PagedMemory.Open<int>("data_path", new PagedMemoryOptions 
 { 
     Width = 100, 
@@ -30,6 +31,9 @@ using var pagedMemory = PagedMemory.Open<int>("data_path", new PagedMemoryOption
 ### 2. 写入数据
 
 ```csharp
+// 直接索引写入
+pagedMemory[0, 0] = 42;
+
 // 单元素设置
 pagedMemory.SetElement(0, 0, 42);
 
@@ -45,11 +49,8 @@ pagedMemory.SetBlock(10, 10, blockData.AsSpan2D());
 ### 3. 数据访问与视图
 
 ```csharp
-// 获取只读接口
+// 获取只读视图
 IReadonlyPagedMemory2D<int> readOnlyView = pagedMemory.AsReadOnly();
-
-// 编译错误：readOnlyView[0, 0] = 99; 
-ref readonly int val = ref readOnlyView[0, 0];
 
 // 获取行视图 (ReadOnlyPagedRowView)
 var rowView = readOnlyView.GetRowView(row: 5, col: 0, len: 10);
@@ -61,20 +62,23 @@ var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
 int v = colView[1500]; 
 ```
 
-### 4. 数据持久化与高性能存储
-
-本项目提供持久化方案，支持元数据（Metadata）的自动恢复：
-
-#### 存储持久化模式 (Persistence Mode)
-本项目提供自动化的持久化方案，支持元数据（Metadata）的自动恢复。
+### 4. 提交持久化
 
 ```csharp
-// 推荐方式：直接通过 PagedMemory 工厂打开目录
-// 工厂会自动探测 metadata.json 并根据 ProviderType 字段恢复对应的 Provider (MMF 或 FileHeap)
-using var paged = PagedMemory.Open<int>("mmf_data", new PagedMemoryOptions { Width = 10 });
+pagedMemory.Commit(); // 触发物理同步并原子化保存元数据
+```
 
-paged.SetElement(5, 5, 999);
-paged.Commit(); // 强制执行 OS 物理页同步并更新元数据
+## 存储持久化详解
+
+本项目通过 `MetadataManager` 管理 `metadata.json`，支持以下持久化介质：
+
+- **MmfPageProvider (默认)**：基于内存映射文件，利用 OS 页面交换实现零拷贝 IO。
+- **FilePersistentHeapProvider**：基于托管堆缓存，同步时将数据序列化到二进制文件。
+
+```csharp
+// 若需手动指定 Provider，可在 PagedMemory2D 构造函数中注入
+var provider = new FilePersistentHeapProvider<int>("my_path");
+var paged = new PagedMemory2D<int>(1024, 1024, provider, "my_path");
 ```
 
 ## 线程安全协议

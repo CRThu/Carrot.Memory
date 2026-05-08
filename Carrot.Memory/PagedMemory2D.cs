@@ -23,6 +23,7 @@ namespace Carrot.Memory
         private readonly int _pageSize;
         private readonly int _width;
         private readonly IPageProvider<T> _provider;
+        private readonly string? _rootPath;
 
         private int _rowCount = 0;
         private bool _disposed;
@@ -37,9 +38,10 @@ namespace Carrot.Memory
         /// 初始化 <see cref="PagedMemory2D{T}"/> 类的新实例。
         /// </summary>
         /// <param name="width">每一行的列数（固定宽度）。</param>
-        /// <param name="pageSize">分页行数（必须是 2 的幂，以便使用位运算优化）。</param>
+        /// <param name="pageSize">分页行数（必须是 2 的幂，以便使用位运算优化。</param>
         /// <param name="provider">页面供应者。如果为 null 则使用默认堆内存分配。</param>
-        public PagedMemory2D(int width, int pageSize, IPageProvider<T>? provider = null)
+        /// <param name="rootPath">持久化根目录路径。如果不为 null，则会尝试从中加载或保存元数据。</param>
+        public PagedMemory2D(int width, int pageSize, IPageProvider<T>? provider = null, string? rootPath = null)
         {
             if (pageSize <= 0 || (pageSize & (pageSize - 1)) != 0)
             {
@@ -52,23 +54,23 @@ namespace Carrot.Memory
             _mask = _pageSize - 1;
             _pages = new Memory2D<T>[InitialPageCapacity];
             _provider = provider ?? new DefaultHeapPageProvider<T>();
+            _rootPath = rootPath;
 
             // 加载持久化元数据
-            if (_provider is IPersistentPageProvider<T> persistent)
+            if (_rootPath != null)
             {
-                if (persistent.TryLoadMetadata(out int savedRowCount, out int savedWidth, out int savedPageSize, out _))
+                var meta = MetadataManager.Load(_rootPath);
+                if (meta != null)
                 {
-                    if (savedWidth != _width || savedPageSize != _pageSize)
+                    if (meta.Width != _width || meta.PageSize != _pageSize)
                     {
                         throw new InvalidOperationException("持久化元数据与容器配置不一致。");
                     }
-                    _rowCount = savedRowCount;
+                    _rowCount = meta.RowCount;
 
                     // 预加载已有的分页
                     if (_rowCount > 0)
                     {
-                        // 这里需要持有锁或者在构造函数中直接操作
-                        // 构造函数中是单线程的，所以直接操作 _pages 是安全的，但 EnsurePageExists 内部有对锁的注释，实际上它不持有锁也能跑，只要没并发
                         _rwLock.EnterWriteLock();
                         try
                         {
@@ -282,7 +284,11 @@ namespace Carrot.Memory
                     {
                         persistent.Flush(pagesSnapshot[i], i);
                     }
-                    persistent.SaveMetadata(Volatile.Read(ref _rowCount), _width, _pageSize);
+
+                    if (_rootPath != null)
+                    {
+                        MetadataManager.Save(_rootPath, Volatile.Read(ref _rowCount), _width, _pageSize, _provider.GetType().Name);
+                    }
                 }
             }
             catch (Exception ex)

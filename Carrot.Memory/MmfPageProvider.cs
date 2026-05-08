@@ -11,26 +11,26 @@ namespace Carrot.Memory
     /// 核心机制：将磁盘文件直接映射到进程虚拟地址空间，由 OS 负责页面交换与物理同步。
     /// </summary>
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged。</typeparam>
-    public sealed class MmfPageProvider<T> : JsonMetadataProviderBase<T>, IDisposable where T : unmanaged
+    public sealed class MmfPageProvider<T> : IPersistentPageProvider<T>, IDisposable where T : unmanaged
     {
+        private readonly string _rootPath;
         private readonly Dictionary<int, (MemoryMappedFile Mmf, MemoryMappedViewAccessor Accessor)> _pages = new();
         private bool _disposed;
 
         /// <summary>
         /// 初始化 MMF 供应者。
         /// </summary>
-        /// <param name="rootPath">存储数据文件与元数据的根目录路径。</param>
-        public MmfPageProvider(string rootPath) : base(rootPath)
+        /// <param name="rootPath">存储数据文件的根目录路径。</param>
+        public MmfPageProvider(string rootPath)
         {
+            _rootPath = rootPath;
+            if (!Directory.Exists(rootPath)) Directory.CreateDirectory(rootPath);
         }
-
-        /// <inheritdoc />
-        protected override string ProviderType => nameof(MmfPageProvider<T>);
 
         /// <summary>
         /// 创建或映射一个物理页面。
         /// </summary>
-        public override unsafe Memory2D<T> Create(int rows, int cols, int index)
+        public unsafe Memory2D<T> Create(int rows, int cols, int index)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(MmfPageProvider<T>));
             if (_pages.ContainsKey(index)) return Memory2D<T>.Empty;
@@ -87,7 +87,7 @@ namespace Carrot.Memory
         /// <summary>
         /// 强制 OS 将映射视图中的脏页刷新到磁盘。
         /// </summary>
-        public override void Flush(Memory2D<T> page, int index)
+        public void Flush(Memory2D<T> page, int index)
         {
             if (_pages.TryGetValue(index, out var entry))
             {

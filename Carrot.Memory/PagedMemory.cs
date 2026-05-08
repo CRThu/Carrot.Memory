@@ -19,46 +19,30 @@ namespace Carrot.Memory
         public static PagedMemory2D<T> Open<T>(string path, PagedMemoryOptions? options = null) 
             where T : unmanaged
         {
-            var metaPath = Path.Combine(path, "metadata.json");
+            var meta = MetadataManager.Load(path);
             IPageProvider<T> provider;
 
-            if (File.Exists(metaPath))
+            if (meta != null)
             {
-                try
-                {
-                    var meta = LoadMetadataInternal(metaPath);
-                    provider = CreateProviderFromType<T>(meta.ProviderType, path);
-                    return new PagedMemory2D<T>(meta.Width, meta.PageSize, provider);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException($"无法从路径恢复容器: {path}", ex);
-                }
+                provider = CreateProviderFromType<T>(meta.ProviderType, path);
+                return new PagedMemory2D<T>(meta.Width, meta.PageSize, provider, path);
             }
             else
             {
                 // 新建逻辑
                 options ??= new PagedMemoryOptions();
                 provider = new MmfPageProvider<T>(path); // 默认策略
-                return new PagedMemory2D<T>(options.Width, options.PageSize, provider);
+                return new PagedMemory2D<T>(options.Width, options.PageSize, provider, path);
             }
-        }
-
-        private static JsonMetadataProviderBase.Metadata LoadMetadataInternal(string path)
-        {
-            var json = File.ReadAllText(path);
-            var meta = JsonSerializer.Deserialize<JsonMetadataProviderBase.Metadata>(json);
-            return meta ?? throw new IOException("元数据格式错误。");
         }
 
         private static IPageProvider<T> CreateProviderFromType<T>(string type, string path) where T : unmanaged
         {
-            return type switch
-            {
-                nameof(MmfPageProvider<T>) => new MmfPageProvider<T>(path),
-                nameof(FilePersistentHeapProvider<T>) => new FilePersistentHeapProvider<T>(path),
-                _ => new MmfPageProvider<T>(path)
-            };
+            // 这里的 type 可能是类名全称或简称，或者是之前 nameof(MmfPageProvider<T>) 生成的字符串
+            if (type.Contains("MmfPageProvider")) return new MmfPageProvider<T>(path);
+            if (type.Contains("FilePersistentHeapProvider")) return new FilePersistentHeapProvider<T>(path);
+            
+            return new MmfPageProvider<T>(path);
         }
     }
 }
