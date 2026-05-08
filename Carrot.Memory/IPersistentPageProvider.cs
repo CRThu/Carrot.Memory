@@ -10,9 +10,9 @@ namespace Carrot.Memory
     public interface IPersistentPageProvider<T> : IPageProvider<T>
     {
         /// <summary>
-        /// 尝试从存储介质恢复容器的逻辑状态（行数、宽度、分页大小）。
+        /// 尝试从存储介质恢复容器的逻辑状态（行数、宽度、分页大小、供应者类型）。
         /// </summary>
-        bool TryLoadMetadata(out int rowCount, out int width, out int pageSize);
+        bool TryLoadMetadata(out int rowCount, out int width, out int pageSize, out string providerType);
 
         /// <summary>
         /// 将容器当前的逻辑状态同步到存储介质。

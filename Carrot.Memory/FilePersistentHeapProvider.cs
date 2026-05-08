@@ -21,6 +21,9 @@ namespace Carrot.Memory
         {
         }
 
+        /// <inheritdoc />
+        protected override string ProviderType => nameof(FilePersistentHeapProvider<T>);
+
         /// <summary>
         /// 创建或加载一个页面。
         /// 若磁盘存在对应的 page_{index}.dat 文件，则自动反序列化到内存。

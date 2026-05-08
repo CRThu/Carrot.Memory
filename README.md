@@ -20,12 +20,11 @@
 ```csharp
 using Carrot.Memory;
 
-// 创建一个每行 100 列，每页 1024 行的容器
-// 推荐：使用静态工厂模式打开或创建容器（支持 unmanaged 类型自动选择 MmfPageProvider）
-using var pagedMemory = PagedMemory.Open<int>("data_path", width: 100, pageSize: 1024);
-
-// 或者手动初始化（支持所有类型）
-using var heapMemory = new PagedMemory2D<int>(width: 100, pageSize: 1024);
+using var pagedMemory = PagedMemory.Open<int>("data_path", new PagedMemoryOptions 
+{ 
+    Width = 100, 
+    PageSize = 1024 
+});
 ```
 
 ### 2. 写入数据
@@ -64,28 +63,15 @@ int v = colView[1500];
 
 ### 4. 数据持久化与高性能存储
 
-本项目提供两种主要的持久化方案，均支持元数据（Metadata）的自动恢复：
+本项目提供持久化方案，支持元数据（Metadata）的自动恢复：
 
-#### A. 堆缓存模式 (Heap-Cache Mode)
-使用 `FilePersistentHeapProvider`。数据驻留在托管堆中作为高速缓存，通过 `Commit()` 将脏页同步到磁盘。适用于常规持久化需求。
-
-```csharp
-// 初始化堆缓存持久化供应者
-var provider = new FilePersistentHeapProvider<int>("my_database");
-
-// 创建容器
-using var paged = new PagedMemory2D<int>(width: 10, pageSize: 1024, provider);
-
-// 写入后提交同步（原子操作：先刷新数据页，后保存元数据）
-paged.Commit();
-```
-
-#### B. 存储映射模式 (MMF Mode)
-使用 `MmfPageProvider`。利用操作系统内存映射（Memory-Mapped Files）技术，实现极致的零拷贝持久化。
+#### 存储持久化模式 (Persistence Mode)
+本项目提供自动化的持久化方案，支持元数据（Metadata）的自动恢复。
 
 ```csharp
 // 推荐方式：直接通过 PagedMemory 工厂打开目录
-using var paged = PagedMemory.Open<int>("mmf_data", width: 10, pageSize: 1024);
+// 工厂会自动探测 metadata.json 并根据 ProviderType 字段恢复对应的 Provider (MMF 或 FileHeap)
+using var paged = PagedMemory.Open<int>("mmf_data", new PagedMemoryOptions { Width = 10 });
 
 paged.SetElement(5, 5, 999);
 paged.Commit(); // 强制执行 OS 物理页同步并更新元数据

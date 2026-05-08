@@ -24,6 +24,9 @@ namespace Carrot.Memory
         {
         }
 
+        /// <inheritdoc />
+        protected override string ProviderType => nameof(MmfPageProvider<T>);
+
         /// <summary>
         /// 创建或映射一个物理页面。
         /// </summary>

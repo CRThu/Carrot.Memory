@@ -41,3 +41,12 @@
 - **预扩容策略**：创建页面时会根据 `pageSize * width * sizeof(T)` 自动调用 `fs.SetLength` 进行物理扩容，防止映射视图越界并保证物理连续性。
 - **显式同步**：虽然 OS 会自动定时刷盘，但 `Flush` 调用会强制执行视图同步（`MemoryMappedViewAccessor.Flush`），确保高优先级数据的持久性。
 - **句柄管理**：页面句柄由 Provider 统一管理并伴随容器 `Dispose` 释放。
+
+### 5. 工厂初始化协议 (Factory Initialization Protocol)
+`PagedMemory.Open<T>` 是推荐的生命周期管理方式：
+- **职责分工**：
+  - **探测 (Probe)**：检查目标路径是否存在 `metadata.json`。
+  - **恢复 (Restore)**：若存在元数据，则解析 `ProviderType`、`Width` 和 `PageSize`，自动实例化正确的供应者。
+  - **新建 (Create)**：若不存在，则根据 `PagedMemoryOptions`（或默认值）初始化，默认使用 `MMF` 策略。
+- **错误处理**：对于元数据损坏或 I/O 错误，必须抛出 `InvalidOperationException` 并包含原始路径信息。
+- **向后兼容**：元数据结构变更需保证旧版本字段的可选性。

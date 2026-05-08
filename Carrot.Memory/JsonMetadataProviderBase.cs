@@ -6,11 +6,28 @@ using CommunityToolkit.HighPerformance;
 namespace Carrot.Memory
 {
     /// <summary>
+    /// 提供基于 JSON 的元数据管理的非泛型基类。
+    /// </summary>
+    public abstract class JsonMetadataProviderBase
+    {
+        /// <summary>
+        /// 内部元数据模型。
+        /// </summary>
+        internal class Metadata
+        {
+            public int RowCount { get; set; }
+            public int Width { get; set; }
+            public int PageSize { get; set; }
+            public string ProviderType { get; set; } = "Default";
+        }
+    }
+
+    /// <summary>
     /// 提供基于 JSON 的元数据管理抽象基类。
     /// 统一处理 metadata.json 的读取、保存与校验逻辑。
     /// </summary>
     /// <typeparam name="T">存储的数据类型。</typeparam>
-    public abstract class JsonMetadataProviderBase<T> : IPersistentPageProvider<T>
+    public abstract class JsonMetadataProviderBase<T> : JsonMetadataProviderBase, IPersistentPageProvider<T>
     {
         protected readonly string _rootPath;
         protected readonly string _metadataPath;
@@ -33,11 +50,17 @@ namespace Carrot.Memory
         public abstract void Flush(Memory2D<T> page, int index);
 
         /// <summary>
+        /// 获取当前供应者的类型标识字符串。
+        /// </summary>
+        protected abstract string ProviderType { get; }
+
+        /// <summary>
         /// 从 metadata.json 加载容器的逻辑状态。
         /// </summary>
-        public virtual bool TryLoadMetadata(out int rowCount, out int width, out int pageSize)
+        public virtual bool TryLoadMetadata(out int rowCount, out int width, out int pageSize, out string providerType)
         {
             rowCount = width = pageSize = 0;
+            providerType = "Default";
             if (!File.Exists(_metadataPath)) return false;
 
             try
@@ -49,6 +72,7 @@ namespace Carrot.Memory
                 rowCount = meta.RowCount;
                 width = meta.Width;
                 pageSize = meta.PageSize;
+                providerType = meta.ProviderType ?? "Default";
                 return true;
             }
             catch
@@ -63,7 +87,13 @@ namespace Carrot.Memory
         /// </summary>
         public virtual void SaveMetadata(int rowCount, int width, int pageSize)
         {
-            var meta = new Metadata { RowCount = rowCount, Width = width, PageSize = pageSize };
+            var meta = new Metadata 
+            { 
+                RowCount = rowCount, 
+                Width = width, 
+                PageSize = pageSize,
+                ProviderType = this.ProviderType
+            };
             var json = JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true });
             
             string tmpPath = _metadataPath + ".tmp";
@@ -85,14 +115,5 @@ namespace Carrot.Memory
             }
         }
 
-        /// <summary>
-        /// 内部元数据模型。
-        /// </summary>
-        protected class Metadata
-        {
-            public int RowCount { get; set; }
-            public int Width { get; set; }
-            public int PageSize { get; set; }
-        }
     }
 }

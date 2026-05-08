@@ -56,7 +56,7 @@ namespace Carrot.Memory
             // 加载持久化元数据
             if (_provider is IPersistentPageProvider<T> persistent)
             {
-                if (persistent.TryLoadMetadata(out int savedRowCount, out int savedWidth, out int savedPageSize))
+                if (persistent.TryLoadMetadata(out int savedRowCount, out int savedWidth, out int savedPageSize, out _))
                 {
                     if (savedWidth != _width || savedPageSize != _pageSize)
                     {
@@ -67,7 +67,17 @@ namespace Carrot.Memory
                     // 预加载已有的分页
                     if (_rowCount > 0)
                     {
-                        EnsurePageExists((_rowCount - 1) >> _shift);
+                        // 这里需要持有锁或者在构造函数中直接操作
+                        // 构造函数中是单线程的，所以直接操作 _pages 是安全的，但 EnsurePageExists 内部有对锁的注释，实际上它不持有锁也能跑，只要没并发
+                        _rwLock.EnterWriteLock();
+                        try
+                        {
+                            EnsurePageExists((_rowCount - 1) >> _shift);
+                        }
+                        finally
+                        {
+                            _rwLock.ExitWriteLock();
+                        }
                     }
                 }
             }
