@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Carrot.Memory;
 
 namespace Carrot.Memory.UnitTest
 {
@@ -36,7 +37,7 @@ namespace Carrot.Memory.UnitTest
                 container.SetElement(0, 0, 100);
                 container.SetElement(5, 5, 200); // 跨页
                 container.SetElement(10, 9, 300); // 跨页
-                container.FlushAll();
+                container.Commit();
             }
 
             // 第二阶段：重新加载验证
@@ -60,7 +61,7 @@ namespace Carrot.Memory.UnitTest
             {
                 container.SetElement(0, 0, 999);
                 container.SetElement(10, 3, 888);
-                container.FlushAll();
+                container.Commit();
             }
 
             // 改用 FilePersistentHeapProvider 加载同一目录
@@ -80,7 +81,7 @@ namespace Carrot.Memory.UnitTest
             using (var container = new PagedMemory2D<int>(10, 4, new MmfPageProvider<int>(_testDir)))
             {
                 container.SetElement(0, 0, 1);
-                container.FlushAll();
+                container.Commit();
                 pageFile = Path.Combine(_testDir, "page_0.dat");
                 Assert.IsTrue(File.Exists(pageFile));
             }

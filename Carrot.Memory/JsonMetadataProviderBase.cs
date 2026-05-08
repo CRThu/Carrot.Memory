@@ -59,12 +59,30 @@ namespace Carrot.Memory
 
         /// <summary>
         /// 将容器当前的逻辑规模（行数、宽度、分页大小）持久化。
+        /// 采用“临时文件 + 覆盖重命名”策略确保写入的原子性。
         /// </summary>
         public virtual void SaveMetadata(int rowCount, int width, int pageSize)
         {
             var meta = new Metadata { RowCount = rowCount, Width = width, PageSize = pageSize };
             var json = JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_metadataPath, json);
+            
+            string tmpPath = _metadataPath + ".tmp";
+            try
+            {
+                File.WriteAllText(tmpPath, json);
+                File.Move(tmpPath, _metadataPath, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"持久化元数据失败: {ex.Message}", ex);
+            }
+            finally
+            {
+                if (File.Exists(tmpPath))
+                {
+                    try { File.Delete(tmpPath); } catch { /* 忽略清理错误 */ }
+                }
+            }
         }
 
         /// <summary>

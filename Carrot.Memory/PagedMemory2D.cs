@@ -198,17 +198,6 @@ namespace Carrot.Memory
         /// </summary>
         ref readonly T IReadonlyPagedMemory2D<T>.this[int r, int c] => ref this[r, c];
 
-        /// <inheritdoc />
-        public void SetRow(int r, int c, ReadOnlySpan<T> data)
-        {
-            SetBlock(r, c, data.AsSpan2D(1, data.Length));
-        }
-
-        /// <inheritdoc />
-        public void SetColumn(int r, int c, ReadOnlySpan<T> data)
-        {
-            SetBlock(r, c, data.AsSpan2D(data.Length, 1));
-        }
 
         /// <summary>
         /// 获取指定行中某一段的水平可写视图（行视图）。
@@ -268,17 +257,31 @@ namespace Carrot.Memory
         #endregion
 
         /// <inheritdoc />
-        public void FlushAll()
+        public void Commit()
         {
-            if (_provider is IPersistentPageProvider<T> persistent)
+            if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
+
+            _rwLock.EnterReadLock();
+            try
             {
-                var pagesSnapshot = Volatile.Read(ref _pages);
-                int count = Math.Min(_pageCount, pagesSnapshot.Length);
-                for (int i = 0; i < count; i++)
+                if (_provider is IPersistentPageProvider<T> persistent)
                 {
-                    persistent.Flush(pagesSnapshot[i], i);
+                    var pagesSnapshot = Volatile.Read(ref _pages);
+                    int count = Math.Min(_pageCount, pagesSnapshot.Length);
+                    for (int i = 0; i < count; i++)
+                    {
+                        persistent.Flush(pagesSnapshot[i], i);
+                    }
+                    persistent.SaveMetadata(Volatile.Read(ref _rowCount), _width, _pageSize);
                 }
-                persistent.SaveMetadata(Volatile.Read(ref _rowCount), _width, _pageSize);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"提交持久化操作失败: {ex.Message}", ex);
+            }
+            finally
+            {
+                _rwLock.ExitReadLock();
             }
         }
 
@@ -289,8 +292,15 @@ namespace Carrot.Memory
         {
             if (_disposed) return;
             
-            // 释放前自动执行最后一次持久化
-            FlushAll();
+            // 释放前自动执行最后一次持久化提交
+            try
+            {
+                Commit();
+            }
+            catch
+            {
+                // 在 Dispose 中忽略提交异常，防止阻塞释放流程
+            }
             
             _rwLock.Dispose();
 

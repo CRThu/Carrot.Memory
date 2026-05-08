@@ -41,7 +41,7 @@ namespace Carrot.Memory.Benchmarks
                 _heapMemory.SetElement(_randomIndices[i].r, _randomIndices[i].c, val);
                 _mmfMemory.SetElement(_randomIndices[i].r, _randomIndices[i].c, val);
             }
-            _mmfMemory.FlushAll();
+            _mmfMemory.Commit();
         }
 
         [GlobalCleanup]

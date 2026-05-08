@@ -8,7 +8,7 @@ namespace Carrot.Memory
     /// 该接口继承自 <see cref="IReadonlyPagedMemory2D{T}"/>，并提供了修改数据的能力。
     /// </summary>
     /// <typeparam name="T">存储的数据类型。</typeparam>
-    public interface IPagedMemory2D<T> : IReadonlyPagedMemory2D<T>, IDisposable
+    public interface IPagedMemory2D<T> : IReadonlyPagedMemory2D<T>, IDisposable, IPersistable
     {
         /// <summary>
         /// 获取指定行号和列号的数据引用。
@@ -53,25 +53,5 @@ namespace Carrot.Memory
         /// <param name="data">待写入的数据块。</param>
         void SetBlock(int r, int c, ReadOnlySpan2D<T> data);
 
-        /// <summary>
-        /// 在指定位置设置单行数据块（水平写入）。
-        /// </summary>
-        /// <param name="r">行索引。</param>
-        /// <param name="c">起始列索引。</param>
-        /// <param name="data">待写入的一维数据。</param>
-        void SetRow(int r, int c, ReadOnlySpan<T> data);
-
-        /// <summary>
-        /// 在指定位置设置单列数据块（垂直写入）。
-        /// </summary>
-        /// <param name="r">起始行索引。</param>
-        /// <param name="c">列索引。</param>
-        /// <param name="data">待写入的一维数据。</param>
-        void SetColumn(int r, int c, ReadOnlySpan<T> data);
-
-        /// <summary>
-        /// 刷新所有页面到持久化层。
-        /// </summary>
-        void FlushAll();
     }
 }

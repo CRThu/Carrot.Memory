@@ -2,6 +2,7 @@ namespace Carrot.Memory.UnitTest;
 
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Carrot.Memory;
 using CommunityToolkit.HighPerformance;
 
 /// <summary>

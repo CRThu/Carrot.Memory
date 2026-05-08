@@ -86,16 +86,16 @@ public class ConcurrencyTests
     }
 
     [TestMethod]
-    public async Task FlushAll_DuringConcurrentExpansion_LockFreeAndSafe()
+    public async Task Commit_DuringConcurrentExpansion_Safe()
     {
         var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
         bool running = true;
 
-        var flushTask = Task.Run(() =>
+        var commitTask = Task.Run(() =>
         {
             while (running)
             {
-                paged.FlushAll();
+                paged.Commit();
             }
         });
 
@@ -107,6 +107,6 @@ public class ConcurrencyTests
         }
 
         running = false;
-        await flushTask;
+        await commitTask;
     }
 }

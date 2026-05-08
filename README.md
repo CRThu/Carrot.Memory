@@ -21,8 +21,11 @@
 using Carrot.Memory;
 
 // 创建一个每行 100 列，每页 1024 行的容器
-// 默认使用堆内存分配器 (DefaultHeapPageProvider)
-using var pagedMemory = new PagedMemory2D<int>(width: 100, pageSize: 1024);
+// 推荐：使用静态工厂模式打开或创建容器（支持 unmanaged 类型自动选择 MmfPageProvider）
+using var pagedMemory = PagedMemory.Open<int>("data_path", width: 100, pageSize: 1024);
+
+// 或者手动初始化（支持所有类型）
+using var heapMemory = new PagedMemory2D<int>(width: 100, pageSize: 1024);
 ```
 
 ### 2. 写入数据
@@ -64,34 +67,28 @@ int v = colView[1500];
 本项目提供两种主要的持久化方案，均支持元数据（Metadata）的自动恢复：
 
 #### A. 堆缓存模式 (Heap-Cache Mode)
-使用 `FilePersistentHeapProvider`。数据驻留在托管堆中作为高速缓存，通过 `FlushAll()` 将脏页同步到磁盘。适用于常规持久化需求。
+使用 `FilePersistentHeapProvider`。数据驻留在托管堆中作为高速缓存，通过 `Commit()` 将脏页同步到磁盘。适用于常规持久化需求。
 
 ```csharp
 // 初始化堆缓存持久化供应者
 var provider = new FilePersistentHeapProvider<int>("my_database");
 
-// 创建容器时传入供应者，将自动加载已有元数据
+// 创建容器
 using var paged = new PagedMemory2D<int>(width: 10, pageSize: 1024, provider);
 
-// 写入后手动持久化
-paged.FlushAll();
+// 写入后提交同步（原子操作：先刷新数据页，后保存元数据）
+paged.Commit();
 ```
 
 #### B. 存储映射模式 (MMF Mode)
-使用 `MmfPageProvider`。利用操作系统内存映射（Memory-Mapped Files）技术，将磁盘文件直接视为内存。
-
-- **优势**：无内存拷贝开销、支持处理远超 RAM 大小的海量数据、系统崩溃后数据更安全。
-- **限制**：仅支持 `unmanaged` 类型。
+使用 `MmfPageProvider`。利用操作系统内存映射（Memory-Mapped Files）技术，实现极致的零拷贝持久化。
 
 ```csharp
-// 初始化 MMF 供应者
-var provider = new MmfPageProvider<int>("mmf_data");
-
-// 容器操作直接作用于磁盘映射的虚拟内存
-using var paged = new PagedMemory2D<int>(width: 10, pageSize: 1024, provider);
+// 推荐方式：直接通过 PagedMemory 工厂打开目录
+using var paged = PagedMemory.Open<int>("mmf_data", width: 10, pageSize: 1024);
 
 paged.SetElement(5, 5, 999);
-paged.FlushAll(); // 强制执行 OS 物理页同步
+paged.Commit(); // 强制执行 OS 物理页同步并更新元数据
 ```
 
 ## 线程安全协议

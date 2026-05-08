@@ -42,7 +42,7 @@ namespace Carrot.Memory.Benchmarks
                     _mmfMemory.SetElement(r, c, val);
                 }
             }
-            _mmfMemory.FlushAll();
+            _mmfMemory.Commit();
         }
 
         [GlobalCleanup]

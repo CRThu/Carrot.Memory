@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Carrot.Memory;
 
 namespace Carrot.Memory.UnitTest
 {
@@ -52,7 +53,7 @@ namespace Carrot.Memory.UnitTest
 
                 Assert.AreEqual(PageSize + 6, pagedA.RowCount);
                 
-                pagedA.FlushAll();
+                pagedA.Commit();
             }
 
             // 阶段 2：创建容器 B，指向相同路径，验证自动恢复
@@ -77,7 +78,7 @@ namespace Carrot.Memory.UnitTest
             {
                 var provider = new FilePersistentHeapProvider<int>(_currentTestPath);
                 using var pagedA = new PagedMemory2D<int>(Width, PageSize, provider);
-                pagedA.FlushAll();
+                pagedA.Commit();
             }
 
             // 阶段 2：以错误配置启动
