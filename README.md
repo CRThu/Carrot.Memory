@@ -83,7 +83,9 @@ var paged = new PagedMemory2D<int>(1024, 1024, provider, "my_path");
 
 ## 线程安全协议
 
-本库遵循 **MWMR (Multi-Writer Multi-Reader)** 协议：
+本库遵循 **MWMR (Multi-Writer Multi-Reader)** 协议，并实施了分层锁策略：
+- **容器层 (Container)**：内置 `ReaderWriterLockSlim` 保护行增长与页面分配逻辑。
+- **供应者层 (Provider)**：内部采用 `ConcurrentDictionary` 管理页面引用，确保在高并发创建或持久化时依然保持线程安全。
 - **读取**：完全并发，支持 `ref readonly` 索引器与视图读取。
 - **写入**：受内置写锁保护，但在修改现有数据元素时（通过 `ref T`），应确保应用层的同步。
 - **扩容**：写入操作会自动触发原子扩容，对读取线程透明且安全。

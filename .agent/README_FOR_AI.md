@@ -28,9 +28,10 @@
 
 ### 3. 持久化扩展 (Persistence Extension)
 通过 **能力接口 + 组合模式** 实现状态同步：
-- **职责解耦**：`IPersistentPageProvider<T>` 仅负责物理页刷新（Flush）。元数据管理由 `MetadataManager` 静态类统一处理。
+- **职责解耦**：`PagedMemory2D` 容器实现 `IPersistable` (Commit)，负责逻辑状态提交；Provider 实现 `IFlushable` (Flush)，负责物理页同步。
 - **状态加载**：`PagedMemory2D` 构造函数直接调用 `MetadataManager.Load` 从 `rootPath` 恢复逻辑行数，不再依赖 Provider 提供加载逻辑。
-- **原子提交**：`Commit()` 方法协调 `Provider.Flush()` 与 `MetadataManager.Save()`。元数据保存采用原子写入策略（.tmp 覆盖），确保系统崩溃重启后逻辑状态不损坏。
+- **原子提交**：容器的 `Commit()` 依次调用 `Provider.Flush()` 与 `MetadataManager.Save()`。这种分层确保了“物理同步 -> 逻辑保存”的正确顺序。
+- **线程安全约束**：Provider 内部管理页面引用的集合必须是线程安全的（如 `ConcurrentDictionary`），以配合容器层的分层锁模型。
 - **生命周期保障**：`Dispose` 时会自动调用 `Commit()`，确保即使未手动同步，数据也能在容器关闭时安全入盘。
 
 ### 4. MMF 存储协议 (Memory-Mapped Storage Protocol)

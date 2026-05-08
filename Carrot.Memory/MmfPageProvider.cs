@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using CommunityToolkit.HighPerformance;
@@ -11,10 +12,10 @@ namespace Carrot.Memory
     /// 核心机制：将磁盘文件直接映射到进程虚拟地址空间，由 OS 负责页面交换与物理同步。
     /// </summary>
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged。</typeparam>
-    public sealed class MmfPageProvider<T> : IPersistentPageProvider<T>, IDisposable where T : unmanaged
+    public sealed class MmfPageProvider<T> : IPageProvider<T>, IFlushable, IDisposable where T : unmanaged
     {
         private readonly string _rootPath;
-        private readonly Dictionary<int, (MemoryMappedFile Mmf, MemoryMappedViewAccessor Accessor)> _pages = new();
+        private readonly ConcurrentDictionary<int, (MemoryMappedFile Mmf, MemoryMappedViewAccessor Accessor)> _pages = new();
         private bool _disposed;
 
         /// <summary>
@@ -33,7 +34,7 @@ namespace Carrot.Memory
         public unsafe Memory2D<T> Create(int rows, int cols, int index)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(MmfPageProvider<T>));
-            if (_pages.ContainsKey(index)) return Memory2D<T>.Empty;
+            if (_pages.TryGetValue(index, out _)) return Memory2D<T>.Empty;
 
             string pagePath = Path.Combine(_rootPath, $"page_{index}.dat");
             long bytesNeeded = (long)rows * cols * sizeof(T);
@@ -85,11 +86,12 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 强制 OS 将映射视图中的脏页刷新到磁盘。
+        /// 强制 OS 将所有映射视图中的脏页刷新到磁盘。
         /// </summary>
-        public void Flush(Memory2D<T> page, int index)
+        public void Flush()
         {
-            if (_pages.TryGetValue(index, out var entry))
+            if (_disposed) return;
+            foreach (var entry in _pages.Values)
             {
                 try
                 {

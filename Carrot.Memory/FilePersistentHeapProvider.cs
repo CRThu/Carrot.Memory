@@ -1,4 +1,4 @@
-using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -11,9 +11,10 @@ namespace Carrot.Memory
     /// 核心机制：内存中使用托管堆作为高速缓存，磁盘中使用二进制文件进行冷备份。
     /// </summary>
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged 以确保二进制序列化的跨平台一致性。</typeparam>
-    public class FilePersistentHeapProvider<T> : IPersistentPageProvider<T> where T : unmanaged
+    public class FilePersistentHeapProvider<T> : IPageProvider<T>, IFlushable where T : unmanaged
     {
         private readonly string _rootPath;
+        private readonly ConcurrentDictionary<int, Memory2D<T>> _pages = new();
 
         /// <summary>
         /// 初始化持久化供应者。
@@ -42,13 +43,23 @@ namespace Carrot.Memory
                 fs.ReadExactly(byteSpan);
             }
 
-            return data.AsMemory().AsMemory2D(rows, cols);
+            var page = data.AsMemory().AsMemory2D(rows, cols);
+            _pages[index] = page;
+            return page;
         }
 
         /// <summary>
-        /// 将内存页面内容同步到磁盘二进制文件。
+        /// 将所有内存页面内容同步到磁盘二进制文件。
         /// </summary>
-        public void Flush(Memory2D<T> page, int index)
+        public void Flush()
+        {
+            foreach (var kvp in _pages)
+            {
+                FlushInternal(kvp.Value, kvp.Key);
+            }
+        }
+
+        private void FlushInternal(Memory2D<T> page, int index)
         {
             string pagePath = Path.Combine(_rootPath, $"page_{index}.dat");
             using var fs = File.Create(pagePath);

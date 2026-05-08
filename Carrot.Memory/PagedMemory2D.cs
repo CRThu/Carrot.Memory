@@ -268,7 +268,6 @@ namespace Carrot.Memory
 
         #endregion
 
-        /// <inheritdoc />
         public void Commit()
         {
             if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
@@ -276,19 +275,16 @@ namespace Carrot.Memory
             _rwLock.EnterReadLock();
             try
             {
-                if (_provider is IPersistentPageProvider<T> persistent)
+                // 1. 如果供应者支持物理刷新，则触发其同步逻辑
+                if (_provider is IFlushable flushable)
                 {
-                    var pagesSnapshot = Volatile.Read(ref _pages);
-                    int count = Math.Min(_pageCount, pagesSnapshot.Length);
-                    for (int i = 0; i < count; i++)
-                    {
-                        persistent.Flush(pagesSnapshot[i], i);
-                    }
+                    flushable.Flush();
+                }
 
-                    if (_rootPath != null)
-                    {
-                        MetadataManager.Save(_rootPath, Volatile.Read(ref _rowCount), _width, _pageSize, _provider.GetType().Name);
-                    }
+                // 2. 无论供应者是否支持物理同步，只要有根目录，就同步容器元数据
+                if (_rootPath != null)
+                {
+                    MetadataManager.Save(_rootPath, Volatile.Read(ref _rowCount), _width, _pageSize, _provider.GetType().Name);
                 }
             }
             catch (Exception ex)
