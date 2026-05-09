@@ -14,8 +14,8 @@ namespace Carrot.Memory.Benchmarks
         private const int _pageSize = BenchmarkConfig.PageSize;
         private const int _totalRows = BenchmarkConfig.TotalRows;
 
-        private string _mmfPath;
-        private string _initTestDataPath;
+        private string _mmfPath = null!;
+        private string _initTestDataPath = null!;
 
         [GlobalSetup]
         public void Setup()
@@ -47,25 +47,28 @@ namespace Carrot.Memory.Benchmarks
         [Benchmark]
         public void Heap_Init_Empty()
         {
-            using var mem = new PagedBuffer2D<int>(_width, _pageSize, new HeapProvider<int>());
+            var options = new PagedBuffer2DOptions { Width = _width, PageSize = _pageSize };
+            using var mem = new PagedBuffer2D<int>(options, new HeapProvider<int>());
         }
 
         [Benchmark]
         public void Heap_Load_Disk()
         {
-            using var mem = new PagedBuffer2D<int>(_width, _pageSize, new HeapProvider<int>());
+            var options = new PagedBuffer2DOptions { Width = _width, PageSize = _pageSize };
+            using var mem = new PagedBuffer2D<int>(options, new HeapProvider<int>());
             using var fs = File.OpenRead(_initTestDataPath);
             byte[] buffer = new byte[_pageSize * _width * sizeof(int)];
             for (int p = 0; p < _totalRows / _pageSize; p++)
             {
-                fs.Read(buffer, 0, buffer.Length);
+                _ = fs.Read(buffer, 0, buffer.Length);
             }
         }
 
         [Benchmark]
         public void MMF_Map_Existing()
         {
-            using var mem = new PagedBuffer2D<int>(_width, _pageSize, new MmfPageProvider<int>(_mmfPath));
+            var options = new PagedBuffer2DOptions { Width = _width, PageSize = _pageSize };
+            using var mem = new PagedBuffer2D<int>(options, new MmfPageProvider<int>(_mmfPath));
         }
     }
 }

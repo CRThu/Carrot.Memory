@@ -30,12 +30,16 @@ using var pagedBuffer = PagedBuffer2DFactory.Open<int>("data_path", options);
 // 直接索引写入
 pagedBuffer[0, 0] = 42;
 
-// 单元素设置
+// 受保护的单元素设置
 pagedBuffer.SetElement(0, 0, 42);
 
-// 批量设置单行 (Row)
+// 批量设置单行 (RowView)
 int[] rowData = new int[100];
 pagedBuffer.SetRow(5, 0, rowData);
+
+// 批量设置单列 (ColumnView - Buffer2DExtensions)
+int[] colData = new int[100];
+pagedBuffer.SetColumn(5, 0, colData);
 
 // 批量设置二维块 (Block)
 int[,] blockData = new int[10, 10];
@@ -45,23 +49,24 @@ pagedBuffer.SetBlock(10, 10, blockData.AsSpan2D());
 ### 3. 数据访问与视图
 
 ```csharp
-// 获取只读视图
+// 获取只读视图 (推荐用于共享读取)
 IReadOnlyBuffer2D<int> readOnlyView = pagedBuffer.AsReadOnly();
 
-// 获取行视图 (ReadOnlyRowView)
-var rowView = readOnlyView.GetRowView(row: 5, col: 0, len: 10);
-ReadOnlySpan<int> span = rowView.AsSpan();
+// 获取行视图 (支持修改，除非使用 ReadOnlyView)
+var rowView = pagedBuffer.GetRowView(row: 5, col: 0, len: 10);
+rowView[0] = 99; // 修改底层内存
 
-// 获取跨页的列视图 (ReadOnlyColumnView)
-// 封装了行列索引寻址逻辑，支持垂直方向跨越多个物理页面进行统一访问
-var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
-int v = colView[1500]; 
+// 获取跨页的列视图 (封装了行列索引寻址逻辑)
+var colView = pagedBuffer.GetColumnView(row: 500, col: 5, len: 200);
+int v = colView[150]; 
 ```
 
 ### 4. 提交持久化
 
 ```csharp
-pagedBuffer.Commit(); // 触发物理同步并原子化保存元数据
+// 触发物理同步并原子化保存元数据
+// 在 Dispose() 时会自动调用一次 Commit()
+pagedBuffer.Commit(); 
 ```
 
 ## 存储持久化详解
@@ -70,13 +75,6 @@ pagedBuffer.Commit(); // 触发物理同步并原子化保存元数据
 
 - **MmfPageProvider (默认)**：基于内存映射文件，利用 OS 页面交换实现零拷贝 IO。
 - **FileHeapProvider**：基于托管堆缓存，同步时将数据序列化到二进制文件。
-
-```csharp
-// 若需手动指定 Provider，可直接通过构造函数注入
-var options = new PagedBuffer2DOptions { Width = 1024, PageSize = 1024, RootPath = "my_path" };
-var provider = new FileHeapProvider<int>("my_path");
-var paged = new PagedBuffer2D<int>(options, provider);
-```
 
 ### 扩展存储介质
 本项目支持自定义存储介质。您可以通过 `PagedBuffer2DFactory.RegisterProvider` 注入新的 Provider：
@@ -110,7 +108,7 @@ using var paged = PagedBuffer2DFactory.Open<int>("data_path", options);
 - **对比目标**：
   - **Baseline**: 原生 `int[,]` 二维数组。
   - **Heap Mode**: `PagedBuffer2D` + `HeapProvider`。
-  - **MMF Mode**: `PagedBuffer2D` + `MmfPageProvider` (在 OS Page Cache 命中的热状态下)。
+  - **MMF Mode**: `PagedBuffer2D` + `MmfPageProvider`。
 
 | 测试维度 (Per Op) | Array2D | PagedHeap | MMF Mode | 结论 |
 | :--- | :---: | :---: | :---: | :--- |

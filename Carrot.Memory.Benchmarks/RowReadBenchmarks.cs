@@ -13,20 +13,21 @@ namespace Carrot.Memory.Benchmarks
         private const int _pageSize = BenchmarkConfig.PageSize;
         private const int _totalRows = BenchmarkConfig.TotalRows;
 
-        private int[,] _baselineArray;
-        private PagedBuffer2D<int> _heapMemory;
-        private PagedBuffer2D<int> _mmfMemory;
-        private string _mmfPath;
+        private int[,] _baselineArray = null!;
+        private PagedBuffer2D<int> _heapMemory = null!;
+        private PagedBuffer2D<int> _mmfMemory = null!;
+        private string _mmfPath = null!;
 
         [GlobalSetup]
         public void Setup()
         {
             _baselineArray = new int[_totalRows, _width];
-            _heapMemory = new PagedBuffer2D<int>(_width, _pageSize, new HeapProvider<int>());
+            var options = new PagedBuffer2DOptions { Width = _width, PageSize = _pageSize };
+            _heapMemory = new PagedBuffer2D<int>(options, new HeapProvider<int>());
             
             _mmfPath = Path.Combine(Path.GetTempPath(), "Carrot_Bench_MMF_RowR_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_mmfPath);
-            _mmfMemory = new PagedBuffer2D<int>(_width, _pageSize, new MmfPageProvider<int>(_mmfPath));
+            _mmfMemory = new PagedBuffer2D<int>(options, new MmfPageProvider<int>(_mmfPath));
 
             // 安全初始化：先完成所有 SetElement 确保 RowCount 正确
             for (int r = 0; r < _totalRows; r++)
