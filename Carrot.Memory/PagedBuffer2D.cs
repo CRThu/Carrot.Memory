@@ -272,7 +272,7 @@ namespace Carrot.Memory
                 // 2. 无论供应者是否支持物理同步，只要有根目录，就同步容器元数据
                 if (_rootPath != null)
                 {
-                    MetadataManager.Save(new PagedBuffer2DOptions
+                    MetadataManager.Save<PagedBuffer2DOptions>(_rootPath, new PagedBuffer2DOptions
                     {
                         Width = _width,
                         PageSize = _pageSize,

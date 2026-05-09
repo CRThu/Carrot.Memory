@@ -78,6 +78,17 @@ var provider = new FileHeapProvider<int>("my_path");
 var paged = new PagedBuffer2D<int>(options, provider);
 ```
 
+### 扩展存储介质
+本项目支持自定义存储介质。您可以通过 `PagedBuffer2DFactory.RegisterProvider` 注入新的 Provider：
+
+```csharp
+PagedBuffer2DFactory.RegisterProvider("Cloud", path => new CloudPageProvider<int>(path));
+
+// 然后即可在 options 中使用该类型
+var options = new PagedBuffer2DOptions { ProviderType = "Cloud" };
+using var paged = PagedBuffer2DFactory.Open<int>("data_path", options);
+```
+
 ## 线程安全协议
 
 本库遵循 **MWMR (Multi-Writer Multi-Reader)** 协议，并实施了分层锁策略：

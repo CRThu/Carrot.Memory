@@ -12,9 +12,9 @@ namespace Carrot.Memory
         private const string MetadataFileName = "metadata.json";
 
         /// <summary>
-        /// 从指定目录加载配置元数据。
+        /// 从指定目录加载元数据。
         /// </summary>
-        public static PagedBuffer2DOptions? Load(string rootPath)
+        public static T? Load<T>(string rootPath) where T : class
         {
             var metadataPath = Path.Combine(rootPath, MetadataFileName);
             if (!File.Exists(metadataPath)) return null;
@@ -22,9 +22,7 @@ namespace Carrot.Memory
             try
             {
                 var json = File.ReadAllText(metadataPath);
-                var options = JsonSerializer.Deserialize<PagedBuffer2DOptions>(json);
-                if (options != null) options.RootPath = rootPath;
-                return options;
+                return JsonSerializer.Deserialize<T>(json);
             }
             catch
             {
@@ -33,20 +31,20 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 将配置元数据持久化到指定目录。
+        /// 将元数据持久化到指定目录。
         /// 采用“临时文件 + 覆盖重命名”策略确保写入的原子性。
         /// </summary>
-        public static void Save(PagedBuffer2DOptions options)
+        public static void Save<T>(string rootPath, T data) where T : class
         {
-            if (string.IsNullOrEmpty(options.RootPath)) 
-                throw new ArgumentException("保存元数据时 RootPath 不能为空。");
+            if (string.IsNullOrEmpty(rootPath)) 
+                throw new ArgumentException("保存元数据时 rootPath 不能为空。");
 
-            if (!Directory.Exists(options.RootPath)) 
-                Directory.CreateDirectory(options.RootPath);
+            if (!Directory.Exists(rootPath)) 
+                Directory.CreateDirectory(rootPath);
             
-            var metadataPath = Path.Combine(options.RootPath, MetadataFileName);
+            var metadataPath = Path.Combine(rootPath, MetadataFileName);
 
-            var json = JsonSerializer.Serialize(options, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
             string tmpPath = metadataPath + ".tmp";
 
             try

@@ -1,16 +1,41 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using Carrot.Memory.Abstractions;
 using Carrot.Memory.Providers;
 
 namespace Carrot.Memory
 {
     /// <summary>
-    /// 提供对 <see cref="PagedPagedBuffer2D{T}"/> 的统一创建与加载工厂。
+    /// 提供对 <see cref="PagedBuffer2D{T}"/> 的统一创建与加载工厂。
     /// </summary>
     public static class PagedBuffer2DFactory
     {
+        private static class ProviderRegistry<T> where T : unmanaged
+        {
+            public static readonly ConcurrentDictionary<string, Func<string, IPageProvider<T>>> Map = new();
+
+            static ProviderRegistry()
+            {
+                // 预先注册内置 Provider
+                Map["MmfPageProvider"] = path => new MmfPageProvider<T>(path);
+                Map["FileHeapProvider"] = path => new FileHeapProvider<T>(path);
+                Map["HeapProvider"] = _ => new HeapProvider<T>();
+            }
+        }
+
+        /// <summary>
+        /// 注册自定义存储介质供应者。
+        /// </summary>
+        /// <param name="name">Provider 的唯一名称（对应 Options 中的 ProviderType）。</param>
+        /// <param name="factory">生成 Provider 实例的工厂方法。输入参数为 rootPath，输出为 IPageProvider 实例。</param>
+        public static void RegisterProvider<T>(string name, Func<string, IPageProvider<T>> factory)
+            where T : unmanaged
+        {
+            ProviderRegistry<T>.Map[name] = factory;
+        }
+
         /// <summary>
         /// 打开或创建一个二维分页内存容器。
         /// </summary>
@@ -22,30 +47,36 @@ namespace Carrot.Memory
             where T : unmanaged
         {
             // 优先级：磁盘元数据 > 传入的 overrides > 默认配置
-            var options = MetadataManager.Load(path) ?? overrides ?? new PagedBuffer2DOptions { RootPath = path };
+            var options = MetadataManager.Load<PagedBuffer2DOptions>(path) ?? overrides ?? new PagedBuffer2DOptions { RootPath = path };
             
             // 确保 RootPath 被正确设置
             options.RootPath = path;
 
-            var provider = CreateProviderFromType<T>(options.ProviderType, path);
+            // 从注册表中获取对应的工厂方法
+            // 由于 ProviderType 可能是泛型名称（如 FileHeapProvider`1），我们需要截取前面的部分
+            string cleanType = options.ProviderType.Split('`')[0];
+
+            if (!ProviderRegistry<T>.Map.TryGetValue(cleanType, out var factory))
+            {
+                // 如果使用去尾后的名称仍未找到，再回退到模糊匹配
+                foreach (var kvp in ProviderRegistry<T>.Map)
+                {
+                    // 使用 StartsWith 而不是 Contains 以防止 FileHeapProvider 匹配到 HeapProvider
+                    if (cleanType.StartsWith(kvp.Key))
+                    {
+                        factory = kvp.Value;
+                        break;
+                    }
+                }
+
+                if (factory == null)
+                    throw new NotSupportedException($"未找到类型为 '{options.ProviderType}' 的存储供应者注册。");
+            }
+
+            var provider = factory(path);
             
             // 使用 options 中的 RowCount 初始化容器
             return new PagedBuffer2D<T>(options, provider, options.RowCount);
-        }
-
-        private static IPageProvider<T> CreateProviderFromType<T>(string type, string path) where T : unmanaged
-        {
-            // 简单的映射逻辑，可根据需要扩展
-            if (string.IsNullOrEmpty(type) || type.Contains("MmfPageProvider")) 
-                return new MmfPageProvider<T>(path);
-            
-            if (type.Contains("FileHeapProvider")) 
-                return new FileHeapProvider<T>(path);
-
-            if (type.Contains("HeapProvider"))
-                return new HeapProvider<T>();
-            
-            return new MmfPageProvider<T>(path);
         }
     }
 }

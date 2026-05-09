@@ -43,7 +43,7 @@
 
 ### 5. 工厂初始化协议 (Factory Initialization Protocol)
 `PagedBuffer2DFactory.Open<T>` 是推荐的生命周期管理方式：
-- **探测 (Probe)**：通过 `MetadataManager.Load` 探测目标路径并加载 `PagedBuffer2DOptions`。
-- **配置优先级**：磁盘元数据配置优先于传入的 `overrides`。`overrides` 仅在新建目录或作为元数据缺失时的补充。
-- **新建 (Create)**：若不存在元数据，根据 `overrides` 或默认 `PagedBuffer2DOptions` 进行初始化。
+- **探测 (Probe)**：通过 `MetadataManager.Load<PagedBuffer2DOptions>` 探测目标路径并加载配置。
+- **注册表模式 (Registry Pattern)**：所有的 Provider 工厂方法均注册在内置的静态泛型注册表 `ProviderRegistry<T>` 中。通过 `options.ProviderType` 字符串作为键进行匹配，从而彻底消除了基于硬编码 `switch-case` 的类型解析。
+- **自定义扩展 (Extension)**：AI 执行者在新增存储介质时，无需修改核心库，只需在初始化前调用 `PagedBuffer2DFactory.RegisterProvider<T>("NewProvider", path => new NewProvider<T>(path))` 注入即可。
 - **纯净构造**：工厂负责编排所有外部资源（Provider、Options、Metadata），最后注入 `PagedBuffer2D` 构造函数，使其保持为纯内存逻辑组件。
