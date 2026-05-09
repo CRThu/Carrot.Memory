@@ -7,7 +7,7 @@ namespace Carrot.Memory
     /// 专用于行访问的静态视图类型，直接包装 <see cref="Span{T}"/> 以实现零开销访问。
     /// </summary>
     /// <typeparam name="T">数据类型。</typeparam>
-    public readonly ref struct PagedRowView<T>
+    public readonly ref struct RowView<T>
     {
         private readonly Span<T> _span;
 
@@ -17,7 +17,7 @@ namespace Carrot.Memory
         public int Length => _span.Length;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal PagedRowView(Span<T> span) => _span = span;
+        internal RowView(Span<T> span) => _span = span;
 
         /// <summary>
         /// 获取视图中指定偏移位置的元素引用。

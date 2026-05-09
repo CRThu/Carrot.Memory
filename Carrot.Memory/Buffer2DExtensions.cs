@@ -1,13 +1,14 @@
 using System;
 using System.Runtime.CompilerServices;
+using Carrot.Memory.Abstractions;
 using CommunityToolkit.HighPerformance;
 
 namespace Carrot.Memory
 {
     /// <summary>
-    /// 提供对 <see cref="IPagedMemory2D{T}"/> 的便捷扩展方法。
+    /// 提供对 <see cref="IBuffer2D{T}"/> 的便捷扩展方法。
     /// </summary>
-    public static class PagedMemoryExtensions
+    public static class Buffer2DExtensions
     {
         /// <summary>
         /// 在指定位置设置单行数据块（水平写入）。
@@ -18,7 +19,7 @@ namespace Carrot.Memory
         /// <param name="c">起始列索引。</param>
         /// <param name="data">待写入的一维数据。</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SetRow<T>(this IPagedMemory2D<T> container, int r, int c, ReadOnlySpan<T> data)
+        public static void SetRow<T>(this IBuffer2D<T> container, int r, int c, ReadOnlySpan<T> data)
         {
             container.SetBlock(r, c, data.AsSpan2D(1, data.Length));
         }
@@ -32,7 +33,7 @@ namespace Carrot.Memory
         /// <param name="c">列索引。</param>
         /// <param name="data">待写入的一维数据。</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SetColumn<T>(this IPagedMemory2D<T> container, int r, int c, ReadOnlySpan<T> data)
+        public static void SetColumn<T>(this IBuffer2D<T> container, int r, int c, ReadOnlySpan<T> data)
         {
             container.SetBlock(r, c, data.AsSpan2D(data.Length, 1));
         }

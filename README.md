@@ -8,8 +8,8 @@
 
 - **分页存储**：使用分页机制管理底层内存，避免 LOH (Large Object Heap) 碎片，支持 2 的幂次页大小优化。
 - **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
-- **零拷贝视图**：提供 `PagedRowView<T>` / `PagedColumnView<T>` 及其只读版本，支持对行（Row）和列（Column）的高性能无损切片访问。
-- **解耦持久化**：采用 **Provider + MetadataManager** 的组合模式。Provider 专注于物理 IO（MMF、文件流等），`MetadataManager` 统一处理 JSON 元数据持久化。
+- **零拷贝视图**：提供 `RowView<T>` / `ColumnView<T>` 及其只读版本，支持对行（Row）和列（Column）的高性能无损切片访问。
+- **解耦持久化**：采用 **Provider + MetadataManager** 的组合模式。Provider 专注于物理 IO（MMF、文件堆等），`MetadataManager` 统一处理 JSON 元数据持久化。
 - **原子提交**：通过 `Commit()` 方法（`IPersistable` 接口）执行“物理页刷新 + 临时文件重命名”策略，确保元数据与数据页同步的原子性。
 
 ## 快速开始
@@ -19,9 +19,9 @@
 ```csharp
 using Carrot.Memory;
 
-// 推荐方式：直接通过 PagedMemory 工厂打开目录
+// 推荐方式：直接通过 PagedBuffer2DFactory 工厂打开目录
 // 工厂会自动探测 metadata.json 并恢复对应的 Provider (MMF 或 FileHeap) 与容器规模
-using var pagedMemory = PagedMemory.Open<int>("data_path", new PagedMemoryOptions 
+using var pagedBuffer = PagedBuffer2DFactory.Open<int>("data_path", new PagedBuffer2DOptions 
 { 
     Width = 100, 
     PageSize = 1024 
@@ -32,31 +32,31 @@ using var pagedMemory = PagedMemory.Open<int>("data_path", new PagedMemoryOption
 
 ```csharp
 // 直接索引写入
-pagedMemory[0, 0] = 42;
+pagedBuffer[0, 0] = 42;
 
 // 单元素设置
-pagedMemory.SetElement(0, 0, 42);
+pagedBuffer.SetElement(0, 0, 42);
 
 // 批量设置单行 (Row)
 int[] rowData = new int[100];
-pagedMemory.SetRow(5, 0, rowData);
+pagedBuffer.SetRow(5, 0, rowData);
 
 // 批量设置二维块 (Block)
 int[,] blockData = new int[10, 10];
-pagedMemory.SetBlock(10, 10, blockData.AsSpan2D());
+pagedBuffer.SetBlock(10, 10, blockData.AsSpan2D());
 ```
 
 ### 3. 数据访问与视图
 
 ```csharp
 // 获取只读视图
-IReadonlyPagedMemory2D<int> readOnlyView = pagedMemory.AsReadOnly();
+IReadOnlyBuffer2D<int> readOnlyView = pagedBuffer.AsReadOnly();
 
-// 获取行视图 (ReadOnlyPagedRowView)
+// 获取行视图 (ReadOnlyRowView)
 var rowView = readOnlyView.GetRowView(row: 5, col: 0, len: 10);
 ReadOnlySpan<int> span = rowView.AsSpan();
 
-// 获取跨页的列视图 (ReadOnlyPagedColumnView)
+// 获取跨页的列视图 (ReadOnlyColumnView)
 // 封装了行列索引寻址逻辑，支持垂直方向跨越多个物理页面进行统一访问
 var colView = readOnlyView.GetColumnView(row: 500, col: 5, len: 2000);
 int v = colView[1500]; 
@@ -65,7 +65,7 @@ int v = colView[1500];
 ### 4. 提交持久化
 
 ```csharp
-pagedMemory.Commit(); // 触发物理同步并原子化保存元数据
+pagedBuffer.Commit(); // 触发物理同步并原子化保存元数据
 ```
 
 ## 存储持久化详解
@@ -73,19 +73,19 @@ pagedMemory.Commit(); // 触发物理同步并原子化保存元数据
 本项目通过 `MetadataManager` 管理 `metadata.json`，支持以下持久化介质：
 
 - **MmfPageProvider (默认)**：基于内存映射文件，利用 OS 页面交换实现零拷贝 IO。
-- **FilePersistentHeapProvider**：基于托管堆缓存，同步时将数据序列化到二进制文件。
+- **FileHeapProvider**：基于托管堆缓存，同步时将数据序列化到二进制文件。
 
 ```csharp
-// 若需手动指定 Provider，可在 PagedMemory2D 构造函数中注入
-var provider = new FilePersistentHeapProvider<int>("my_path");
-var paged = new PagedMemory2D<int>(1024, 1024, provider, "my_path");
+// 若需手动指定 Provider，可在 PagedBuffer2D 构造函数中注入
+var provider = new FileHeapProvider<int>("my_path");
+var paged = new PagedBuffer2D<int>(1024, 1024, provider, "my_path");
 ```
 
 ## 线程安全协议
 
 本库遵循 **MWMR (Multi-Writer Multi-Reader)** 协议，并实施了分层锁策略：
 - **容器层 (Container)**：内置 `ReaderWriterLockSlim` 保护行增长与页面分配逻辑。
-- **供应者层 (Provider)**：内部采用 `ConcurrentDictionary` 管理页面引用，确保在高并发创建或持久化时依然保持线程安全。
+- **供应者层 (Provider)**：内部采用线程安全机制管理页面引用，确保在高并发创建或持久化时依然保持线程安全。
 - **读取**：完全并发，支持 `ref readonly` 索引器与视图读取。
 - **写入**：受内置写锁保护，但在修改现有数据元素时（通过 `ref T`），应确保应用层的同步。
 - **扩容**：写入操作会自动触发原子扩容，对读取线程透明且安全。
@@ -101,8 +101,8 @@ var paged = new PagedMemory2D<int>(1024, 1024, provider, "my_path");
 - **分页配置**：单页大小 256MB，分页规模 2^16 行
 - **对比目标**：
   - **Baseline**: 原生 `int[,]` 二维数组。
-  - **Heap Mode**: `PagedMemory2D` + `DefaultHeapPageProvider`。
-  - **MMF Mode**: `PagedMemory2D` + `MmfPageProvider` (在 OS Page Cache 命中的热状态下)。
+  - **Heap Mode**: `PagedBuffer2D` + `HeapProvider`。
+  - **MMF Mode**: `PagedBuffer2D` + `MmfPageProvider` (在 OS Page Cache 命中的热状态下)。
 
 | 测试维度 (Per Op) | Array2D | PagedHeap | MMF Mode | 结论 |
 | :--- | :---: | :---: | :---: | :--- |
@@ -116,7 +116,7 @@ var paged = new PagedMemory2D<int>(1024, 1024, provider, "my_path");
 
 
 **数据解读：**
-1. **大规模提速**：在 1GB 级数据量级下，`PagedMemory2D` 的顺序遍历性能显著优于原生 `Array2D`（约 2.6x），这得益于对内存页布局优化和 Span 的应用。
+1. **大规模提速**：在 1GB 级数据量级下，`PagedBuffer2D` 的顺序遍历性能显著优于原生 `Array2D`（约 2.6x），这得益于对内存页布局优化和 Span 的应用。
 2. **MMF 零损耗**：`MMF Mode` 在数据预热后（Page Cache 命中）与 `Heap Mode` 性能几乎一致，但在持久化恢复场景下具有绝对优势。
 3. **写入爆发力**：`SetBlock` 性能在 Paged 模式下相比原生数组有数量级的提升（~11x），展示了分页机制下内存复制的局部性优势。
 4. **瞬时恢复**：MMF 映射现有文件仅需 **0.86 ms**，而堆内存重新加载同样大小的文件需要 406.6 ms，这在海量数据处理系统重启时具有决定性意义。

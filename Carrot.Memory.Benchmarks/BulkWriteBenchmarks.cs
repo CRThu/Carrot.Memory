@@ -16,8 +16,8 @@ namespace Carrot.Memory.Benchmarks
         private const int BlockSize = 128;
 
         private int[,] _baselineArray;
-        private PagedMemory2D<int> _heapMemory;
-        private PagedMemory2D<int> _mmfMemory;
+        private PagedBuffer2D<int> _heapMemory;
+        private PagedBuffer2D<int> _mmfMemory;
         private string _mmfPath;
 
         private int[,] _sourceBlock;
@@ -26,11 +26,11 @@ namespace Carrot.Memory.Benchmarks
         public void Setup()
         {
             _baselineArray = new int[BlockSize, BlockSize];
-            _heapMemory = new PagedMemory2D<int>(_width, _pageSize, new DefaultHeapPageProvider<int>());
+            _heapMemory = new PagedBuffer2D<int>(_width, _pageSize, new HeapProvider<int>());
             
             _mmfPath = Path.Combine(Path.GetTempPath(), "Carrot_Bench_MMF_BulkW_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_mmfPath);
-            _mmfMemory = new PagedMemory2D<int>(_width, _pageSize, new MmfPageProvider<int>(_mmfPath));
+            _mmfMemory = new PagedBuffer2D<int>(_width, _pageSize, new MmfPageProvider<int>(_mmfPath));
 
             _sourceBlock = new int[BlockSize, BlockSize];
             for (int i = 0; i < BlockSize; i++)

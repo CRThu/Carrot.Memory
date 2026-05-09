@@ -4,16 +4,16 @@
 
 ### 1. 双视图隔离 (ReadOnly/Writable Isolation)
 为了确保内存安全性并利用 C# 7.2+ 的 `ref readonly` 特性，本项目采用双视图模型，并使用静态视图类型替代动态模式以消除运行时分支开销：
-- **只读层级 (`IReadonlyPagedMemory2D<T>`)**：
+- **只读层级 (`IReadOnlyBuffer2D<T>`)**：
   - 索引器返回 `ref readonly T`，禁止通过该接口进行任何修改。
-  - `GetRowView` 返回 `ReadOnlyPagedRowView<T>`，直接包装 `ReadOnlySpan<T>`。
-  - `GetColumnView` 返回 `ReadOnlyPagedColumnView<T>`，封装行列索引寻址。
+  - `GetRowView` 返回 `ReadOnlyRowView<T>`，直接包装 `ReadOnlySpan<T>`。
+  - `GetColumnView` 返回 `ReadOnlyColumnView<T>`，封装行列索引寻址。
   - 所有只读视图内部索引器同样受 `ref readonly` 保护。
-- **读写层级 (`IPagedMemory2D<T>` / `PagedMemory2D<T>`)**：
+- **读写层级 (`IBuffer2D<T>` / `PagedBuffer2D<T>`)**：
   - 索引器返回 `ref T`，允许高性能的原地修改。
-  - `GetRowView` 返回 `PagedRowView<T>`，支持对底层 `Span<T>` 的直接写操作。
-  - `GetColumnView` 返回 `PagedColumnView<T>`，支持跨页的垂直写操作。
-  - 具象类 `PagedMemory2D<T>` 通过显式接口实现来隔离只读路径。
+  - `GetRowView` 返回 `RowView<T>`，支持对底层 `Span<T>` 的直接写操作。
+  - `GetColumnView` 返回 `ColumnView<T>`，支持跨页的垂直写操作。
+  - 具象类 `PagedBuffer2D<T>` 通过显式接口实现来隔离只读路径。
 
 ### 2. 同步提交边界 (Commit Boundary)
 `Commit()` 操作确保数据状态与物理存储的一致性：
@@ -28,8 +28,8 @@
 
 ### 3. 持久化扩展 (Persistence Extension)
 通过 **能力接口 + 组合模式** 实现状态同步：
-- **职责解耦**：`PagedMemory2D` 容器实现 `IPersistable` (Commit)，负责逻辑状态提交；Provider 实现 `IFlushable` (Flush)，负责物理页同步。
-- **状态加载**：`PagedMemory2D` 构造函数直接调用 `MetadataManager.Load` 从 `rootPath` 恢复逻辑行数，不再依赖 Provider 提供加载逻辑。
+- **职责解耦**：`PagedBuffer2D` 容器实现 `IPersistable` (Commit)，负责逻辑状态提交；Provider 实现 `IFlushable` (Flush)，负责物理页同步。
+- **状态加载**：`PagedBuffer2D` 构造函数直接调用 `MetadataManager.Load` 从 `rootPath` 恢复逻辑行数，不再依赖 Provider 提供加载逻辑。
 - **原子提交**：容器的 `Commit()` 依次调用 `Provider.Flush()` 与 `MetadataManager.Save()`。这种分层确保了“物理同步 -> 逻辑保存”的正确顺序。
 - **线程安全约束**：Provider 内部管理页面引用的集合必须是线程安全的（如 `ConcurrentDictionary`），以配合容器层的分层锁模型。
 - **生命周期保障**：`Dispose` 时会自动调用 `Commit()`，确保即使未手动同步，数据也能在容器关闭时安全入盘。
@@ -41,8 +41,8 @@
 - **显式同步**：`Flush` 调用会强制执行视图同步（`MemoryMappedViewAccessor.Flush`），确保高优先级数据的持久性。
 
 ### 5. 工厂初始化协议 (Factory Initialization Protocol)
-`PagedMemory.Open<T>` 是推荐的生命周期管理方式：
+`PagedBuffer2DFactory.Open<T>` 是推荐的生命周期管理方式：
 - **探测 (Probe)**：通过 `MetadataManager.Load` 探测目标路径。
-- **恢复 (Restore)**：若存在元数据，根据其记录的 `ProviderType` 自动实例化正确的供应者，并委托 `PagedMemory2D` 恢复状态。
-- **新建 (Create)**：若不存在，根据 `PagedMemoryOptions` 初始化，默认使用 `MMF` 策略。
+- **恢复 (Restore)**：若存在元数据，根据其记录的 `ProviderType` 自动实例化正确的供应者，并委托 `PagedBuffer2D` 恢复状态。
+- **新建 (Create)**：若不存在，根据 `PagedBuffer2DOptions` 初始化，默认使用 `MMF` 策略。
 - **灵活性**：工厂仅负责 Provider 的选型，核心逻辑状态的维护由容器主类闭环处理。

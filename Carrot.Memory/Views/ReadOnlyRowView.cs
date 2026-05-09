@@ -7,7 +7,7 @@ namespace Carrot.Memory
     /// 专用于行访问的只读静态视图类型，直接包装 <see cref="ReadOnlySpan{T}"/>。
     /// </summary>
     /// <typeparam name="T">数据类型。</typeparam>
-    public readonly ref struct ReadOnlyPagedRowView<T>
+    public readonly ref struct ReadOnlyRowView<T>
     {
         private readonly ReadOnlySpan<T> _span;
 
@@ -17,7 +17,7 @@ namespace Carrot.Memory
         public int Length => _span.Length;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ReadOnlyPagedRowView(ReadOnlySpan<T> span) => _span = span;
+        internal ReadOnlyRowView(ReadOnlySpan<T> span) => _span = span;
 
         /// <summary>
         /// 获取视图中指定偏移位置的元素只读引用。

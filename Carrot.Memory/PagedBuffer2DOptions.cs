@@ -1,9 +1,9 @@
 namespace Carrot.Memory;
 
 /// <summary>
-/// 封装 PagedMemory2D 的初始化配置参数。
+/// 封装 PagedBuffer2D 的初始化配置参数。
 /// </summary>
-public class PagedMemoryOptions
+public class PagedBuffer2DOptions
 {
     /// <summary>
     /// 容器宽度（列数）。默认为 1024。

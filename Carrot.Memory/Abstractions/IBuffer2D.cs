@@ -1,14 +1,14 @@
-using System;
+using Carrot.Memory.Views;
 using CommunityToolkit.HighPerformance;
 
-namespace Carrot.Memory
+namespace Carrot.Memory.Abstractions
 {
     /// <summary>
     /// 提供对二维分页内存的读写访问接口。
-    /// 该接口继承自 <see cref="IReadonlyPagedMemory2D{T}"/>，并提供了修改数据的能力。
+    /// 该接口继承自 <see cref="IReadOnlyBuffer2D{T}"/>，并提供了修改数据的能力。
     /// </summary>
     /// <typeparam name="T">存储的数据类型。</typeparam>
-    public interface IPagedMemory2D<T> : IReadonlyPagedMemory2D<T>, IDisposable, IPersistable
+    public interface IBuffer2D<T> : IReadOnlyBuffer2D<T>, IPersistable, IDisposable
     {
         /// <summary>
         /// 获取指定行号和列号的数据引用。
@@ -26,7 +26,7 @@ namespace Carrot.Memory
         /// <param name="col">起始列索引。</param>
         /// <param name="len">截取长度。</param>
         /// <returns>对应的可写视图对象。</returns>
-        new PagedRowView<T> GetRowView(int row, int col, int len);
+        new RowView<T> GetRowView(int row, int col, int len);
 
         /// <summary>
         /// 获取指定列中某一段的垂直可写视图（列视图），支持跨页。
@@ -35,7 +35,7 @@ namespace Carrot.Memory
         /// <param name="col">列索引。</param>
         /// <param name="len">垂直截取长度。</param>
         /// <returns>对应的可写视图对象。</returns>
-        new PagedColumnView<T> GetColumnView(int row, int col, int len);
+        new ColumnView<T> GetColumnView(int row, int col, int len);
 
         /// <summary>
         /// 在指定位置设置单个元素。

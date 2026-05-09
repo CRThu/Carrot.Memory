@@ -47,13 +47,13 @@ namespace Carrot.Memory.Benchmarks
         [Benchmark]
         public void Heap_Init_Empty()
         {
-            using var mem = new PagedMemory2D<int>(_width, _pageSize, new DefaultHeapPageProvider<int>());
+            using var mem = new PagedBuffer2D<int>(_width, _pageSize, new HeapProvider<int>());
         }
 
         [Benchmark]
         public void Heap_Load_Disk()
         {
-            using var mem = new PagedMemory2D<int>(_width, _pageSize, new DefaultHeapPageProvider<int>());
+            using var mem = new PagedBuffer2D<int>(_width, _pageSize, new HeapProvider<int>());
             using var fs = File.OpenRead(_initTestDataPath);
             byte[] buffer = new byte[_pageSize * _width * sizeof(int)];
             for (int p = 0; p < _totalRows / _pageSize; p++)
@@ -65,7 +65,7 @@ namespace Carrot.Memory.Benchmarks
         [Benchmark]
         public void MMF_Map_Existing()
         {
-            using var mem = new PagedMemory2D<int>(_width, _pageSize, new MmfPageProvider<int>(_mmfPath));
+            using var mem = new PagedBuffer2D<int>(_width, _pageSize, new MmfPageProvider<int>(_mmfPath));
         }
     }
 }

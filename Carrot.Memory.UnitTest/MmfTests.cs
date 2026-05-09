@@ -2,13 +2,14 @@ using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Carrot.Memory;
+using Carrot.Memory.Providers;
 
 namespace Carrot.Memory.UnitTest
 {
     [TestClass]
     public class MmfTests
     {
-        private string _testDir;
+        private string? _testDir;
 
         [TestInitialize]
         public void Setup()
@@ -32,7 +33,7 @@ namespace Carrot.Memory.UnitTest
             int pageSize = 4; // 2^2
             
             // 第一阶段：写入数据
-            using (var container = new PagedMemory2D<int>(width, pageSize, new MmfPageProvider<int>(_testDir), _testDir))
+            using (var container = new PagedBuffer2D<int>(width, pageSize, new MmfPageProvider<int>(_testDir!), _testDir))
             {
                 container.SetElement(0, 0, 100);
                 container.SetElement(5, 5, 200); // 跨页
@@ -41,7 +42,7 @@ namespace Carrot.Memory.UnitTest
             }
 
             // 第二阶段：重新加载验证
-            using (var container = new PagedMemory2D<int>(width, pageSize, new MmfPageProvider<int>(_testDir), _testDir))
+            using (var container = new PagedBuffer2D<int>(width, pageSize, new MmfPageProvider<int>(_testDir!), _testDir))
             {
                 Assert.AreEqual(11, container.RowCount);
                 Assert.AreEqual(100, container[0, 0]);
@@ -57,15 +58,15 @@ namespace Carrot.Memory.UnitTest
             int width = 4;
             int pageSize = 8;
 
-            using (var container = new PagedMemory2D<int>(width, pageSize, new MmfPageProvider<int>(_testDir), _testDir))
+            using (var container = new PagedBuffer2D<int>(width, pageSize, new MmfPageProvider<int>(_testDir!), _testDir))
             {
                 container.SetElement(0, 0, 999);
                 container.SetElement(10, 3, 888);
                 container.Commit();
             }
 
-            // 改用 FilePersistentHeapProvider 加载同一目录
-            using (var container = new PagedMemory2D<int>(width, pageSize, new FilePersistentHeapProvider<int>(_testDir), _testDir))
+            // 改用 FileHeapProvider 加载同一目录
+            using (var container = new PagedBuffer2D<int>(width, pageSize, new FileHeapProvider<int>(_testDir!), _testDir))
             {
                 Assert.AreEqual(11, container.RowCount);
                 Assert.AreEqual(999, container[0, 0]);
@@ -78,11 +79,11 @@ namespace Carrot.Memory.UnitTest
         {
             // 这个测试确保 Dispose 后文件不再被占用
             string pageFile;
-            using (var container = new PagedMemory2D<int>(10, 4, new MmfPageProvider<int>(_testDir), _testDir))
+            using (var container = new PagedBuffer2D<int>(10, 4, new MmfPageProvider<int>(_testDir!), _testDir))
             {
                 container.SetElement(0, 0, 1);
                 container.Commit();
-                pageFile = Path.Combine(_testDir, "page_0.dat");
+                pageFile = Path.Combine(_testDir!, "page_0.dat");
                 Assert.IsTrue(File.Exists(pageFile));
             }
 

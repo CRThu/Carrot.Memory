@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using Carrot.Memory.Abstractions;
+using Carrot.Memory.Providers;
 using CommunityToolkit.HighPerformance;
 
 namespace Carrot.Memory

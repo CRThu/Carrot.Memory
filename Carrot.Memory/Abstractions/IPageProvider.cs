@@ -1,6 +1,6 @@
 using CommunityToolkit.HighPerformance;
 
-namespace Carrot.Memory
+namespace Carrot.Memory.Abstractions
 {
     /// <summary>
     /// 分页供应者接口，支持自定义页面分配和刷新逻辑。

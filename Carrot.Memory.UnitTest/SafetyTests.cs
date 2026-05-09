@@ -1,3 +1,5 @@
+using Carrot.Memory.Abstractions;
+
 namespace Carrot.Memory.UnitTest;
 
 using System;
@@ -17,7 +19,7 @@ public class SafetyTests
     [TestMethod]
     public void SetElement_AfterDispose_ShouldThrowObjectDisposedException()
     {
-        var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
         paged.Dispose();
 
         try
@@ -31,10 +33,10 @@ public class SafetyTests
     [TestMethod]
     public void ReadOnlyView_ModifyAttempt_VerifyIsolation()
     {
-        var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
         paged.SetElement(0, 0, 100);
         
-        IReadonlyPagedMemory2D<int> readOnly = paged.AsReadOnly();
+        IReadOnlyBuffer2D<int> readOnly = paged.AsReadOnly();
         
         // 验证读取正常
         Assert.AreEqual(100, readOnly[0, 0]);
@@ -48,7 +50,7 @@ public class SafetyTests
     [TestMethod]
     public void Indexer_AccessOutOfRange_ShouldThrowIndexOutOfRangeException()
     {
-        var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
         paged.SetElement(0, 0, 1);
 
         try
@@ -69,7 +71,7 @@ public class SafetyTests
     [TestMethod]
     public void SetBlock_InvalidWidthBound_ShouldThrowArgumentException()
     {
-        var paged = new PagedMemory2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
         int[,] invalidData = new int[1, DefaultWidth + 1];
 
         try

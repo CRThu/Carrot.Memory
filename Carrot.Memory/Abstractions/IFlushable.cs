@@ -1,4 +1,4 @@
-namespace Carrot.Memory
+namespace Carrot.Memory.Abstractions
 {
     /// <summary>
     /// 定义支持物理数据刷新的契约。

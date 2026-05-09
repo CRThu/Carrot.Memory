@@ -3,6 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Numerics;
 using System.Threading;
+using Carrot.Memory.Abstractions;
+using Carrot.Memory.Views;
 using CommunityToolkit.HighPerformance;
 
 namespace Carrot.Memory
@@ -12,7 +14,7 @@ namespace Carrot.Memory
     /// 该类实现了双视图模式：通过显式接口实现支持只读访问，同时保留高性能的直接读写能力。
     /// </summary>
     /// <typeparam name="T">存储的数据类型。</typeparam>
-    public class PagedMemory2D<T> : IPagedMemory2D<T>
+    public class PagedBuffer2D<T> : IBuffer2D<T>
     {
         private const int InitialPageCapacity = 16;
         private readonly ReaderWriterLockSlim _rwLock = new();
@@ -35,13 +37,13 @@ namespace Carrot.Memory
         public int Width => _width;
 
         /// <summary>
-        /// 初始化 <see cref="PagedMemory2D{T}"/> 类的新实例。
+        /// 初始化 <see cref="PagedPagedBuffer2D{T}"/> 类的新实例。
         /// </summary>
         /// <param name="width">每一行的列数（固定宽度）。</param>
         /// <param name="pageSize">分页行数（必须是 2 的幂，以便使用位运算优化。</param>
         /// <param name="provider">页面供应者。如果为 null 则使用默认堆内存分配。</param>
         /// <param name="rootPath">持久化根目录路径。如果不为 null，则会尝试从中加载或保存元数据。</param>
-        public PagedMemory2D(int width, int pageSize, IPageProvider<T>? provider = null, string? rootPath = null)
+        public PagedBuffer2D(int width, int pageSize, IPageProvider<T>? provider = null, string? rootPath = null)
         {
             if (pageSize <= 0 || (pageSize & (pageSize - 1)) != 0)
             {
@@ -53,7 +55,7 @@ namespace Carrot.Memory
             _shift = BitOperations.TrailingZeroCount((uint)pageSize);
             _mask = _pageSize - 1;
             _pages = new Memory2D<T>[InitialPageCapacity];
-            _provider = provider ?? new DefaultHeapPageProvider<T>();
+            _provider = provider ?? new HeapProvider<T>();
             _rootPath = rootPath;
 
             // 加载持久化元数据
@@ -88,7 +90,7 @@ namespace Carrot.Memory
         /// <summary>
         /// 获取当前实例的只读视图接口。
         /// </summary>
-        public IReadonlyPagedMemory2D<T> AsReadOnly() => this;
+        public IReadOnlyBuffer2D<T> AsReadOnly() => this;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnsurePageExists(int pageIdx)
@@ -115,7 +117,7 @@ namespace Carrot.Memory
         /// <inheritdoc />
         public void SetElement(int r, int c, T value)
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
+            if (_disposed) throw new ObjectDisposedException(nameof(PagedBuffer2D<T>));
             if ((uint)c >= (uint)_width) ThrowArgumentException("列索引越界");
 
             _rwLock.EnterWriteLock();
@@ -140,7 +142,7 @@ namespace Carrot.Memory
         /// <inheritdoc />
         public void SetBlock(int r, int c, ReadOnlySpan2D<T> data)
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
+            if (_disposed) throw new ObjectDisposedException(nameof(PagedBuffer2D<T>));
             if (r < 0 || c < 0 || c + data.Width > _width) ThrowArgumentException("写入区域越界或非法");
             
             _rwLock.EnterWriteLock();
@@ -208,60 +210,60 @@ namespace Carrot.Memory
         /// <summary>
         /// 显式实现只读接口索引器，返回只读引用。
         /// </summary>
-        ref readonly T IReadonlyPagedMemory2D<T>.this[int r, int c] => ref this[r, c];
+        ref readonly T IReadOnlyBuffer2D<T>.this[int r, int c] => ref this[r, c];
 
 
         /// <summary>
         /// 获取指定行中某一段的水平可写视图（行视图）。
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PagedRowView<T> GetRowView(int row, int col, int len)
+        public RowView<T> GetRowView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
             var page = Volatile.Read(ref _pages)[row >> _shift].Span;
-            return new PagedRowView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
+            return new RowView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
         }
 
         /// <summary>
         /// 显式实现只读接口视图获取，返回只读行视图。
         /// </summary>
-        ReadOnlyPagedRowView<T> IReadonlyPagedMemory2D<T>.GetRowView(int row, int col, int len)
+        ReadOnlyRowView<T> IReadOnlyBuffer2D<T>.GetRowView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)row >= (uint)rowCount || (uint)col + (uint)len > (uint)_width) ThrowIndexOutOfRangeException();
             var page = Volatile.Read(ref _pages)[row >> _shift].Span;
-            return new ReadOnlyPagedRowView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
+            return new ReadOnlyRowView<T>(page.GetRowSpan(row & _mask).Slice(col, len));
         }
 
         /// <summary>
         /// 获取指定列中某一段的垂直可写视图（列视图），支持跨页。
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public PagedColumnView<T> GetColumnView(int row, int col, int len)
+        public ColumnView<T> GetColumnView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
 
-            return new PagedColumnView<T>(this, row, col, len);
+            return new ColumnView<T>(this, row, col, len);
         }
 
         /// <summary>
         /// 显式实现只读接口视图获取，返回只读列视图。
         /// </summary>
-        ReadOnlyPagedColumnView<T> IReadonlyPagedMemory2D<T>.GetColumnView(int row, int col, int len)
+        ReadOnlyColumnView<T> IReadOnlyBuffer2D<T>.GetColumnView(int row, int col, int len)
         {
             int rowCount = Volatile.Read(ref _rowCount);
             if ((uint)col >= (uint)_width || (uint)row + (uint)len > (uint)rowCount) ThrowIndexOutOfRangeException();
 
-            return new ReadOnlyPagedColumnView<T>(this, row, col, len);
+            return new ReadOnlyColumnView<T>(this, row, col, len);
         }
 
         #region Throw Helpers
 
         [DoesNotReturn]
         private static void ThrowIndexOutOfRangeException() =>
-            throw new IndexOutOfRangeException("访问越界：超出了 PagedMemory2D 的有效范围。");
+            throw new IndexOutOfRangeException("访问越界：超出了 PagedBuffer2D 的有效范围。");
 
         [DoesNotReturn]
         private static void ThrowArgumentException(string msg) => throw new ArgumentException(msg);
@@ -270,7 +272,7 @@ namespace Carrot.Memory
 
         public void Commit()
         {
-            if (_disposed) throw new ObjectDisposedException(nameof(PagedMemory2D<T>));
+            if (_disposed) throw new ObjectDisposedException(nameof(PagedBuffer2D<T>));
 
             _rwLock.EnterReadLock();
             try

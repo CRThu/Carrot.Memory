@@ -1,17 +1,16 @@
 using System.Collections.Concurrent;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Text.Json;
+using Carrot.Memory.Abstractions;
 using CommunityToolkit.HighPerformance;
 
-namespace Carrot.Memory
+namespace Carrot.Memory.Providers
 {
     /// <summary>
     /// 提供基于文件系统的持久化堆内存供应者。
     /// 核心机制：内存中使用托管堆作为高速缓存，磁盘中使用二进制文件进行冷备份。
     /// </summary>
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged 以确保二进制序列化的跨平台一致性。</typeparam>
-    public class FilePersistentHeapProvider<T> : IPageProvider<T>, IFlushable where T : unmanaged
+    public class FileHeapProvider<T> : IPageProvider<T>, IFlushable where T : unmanaged
     {
         private readonly string _rootPath;
         private readonly ConcurrentDictionary<int, Memory2D<T>> _pages = new();
@@ -20,7 +19,7 @@ namespace Carrot.Memory
         /// 初始化持久化供应者。
         /// </summary>
         /// <param name="rootPath">存储数据文件的根目录路径。</param>
-        public FilePersistentHeapProvider(string rootPath)
+        public FileHeapProvider(string rootPath)
         {
             _rootPath = rootPath;
             if (!Directory.Exists(rootPath)) Directory.CreateDirectory(rootPath);

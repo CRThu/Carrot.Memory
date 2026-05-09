@@ -1,16 +1,16 @@
-using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using Carrot.Memory.Abstractions;
 
-namespace Carrot.Memory
+namespace Carrot.Memory.Views
 {
     /// <summary>
-    /// 专用于列访问的只读静态视图类型，封装行列索引与 <see cref="IReadonlyPagedMemory2D{T}"/> 的寻址逻辑。
+    /// 专用于列访问的静态视图类型，封装行列索引与 <see cref="IBuffer2D{T}"/> 的寻址逻辑。
     /// </summary>
     /// <typeparam name="T">数据类型。</typeparam>
-    public readonly ref struct ReadOnlyPagedColumnView<T>
+    public readonly ref struct ColumnView<T>
     {
-        private readonly IReadonlyPagedMemory2D<T> _parent;
+        private readonly IBuffer2D<T> _parent;
         private readonly int _r, _c, _len;
 
         /// <summary>
@@ -19,7 +19,7 @@ namespace Carrot.Memory
         public int Length => _len;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ReadOnlyPagedColumnView(IReadonlyPagedMemory2D<T> parent, int r, int c, int len)
+        internal ColumnView(IBuffer2D<T> parent, int r, int c, int len)
         {
             _parent = parent;
             _r = r;
@@ -28,11 +28,11 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 获取视图中指定偏移位置的元素只读引用。
+        /// 获取视图中指定偏移位置的元素引用。
         /// </summary>
         /// <param name="i">索引。</param>
-        /// <returns>数据的只读引用。</returns>
-        public ref readonly T this[int i]
+        /// <returns>数据的可写引用。</returns>
+        public ref T this[int i]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get

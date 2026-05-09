@@ -1,8 +1,6 @@
-using System;
 using System.Buffers;
-using System.Runtime.InteropServices;
 
-namespace Carrot.Memory
+namespace Carrot.Memory.Providers
 {
     /// <summary>
     /// 非托管内存管理器，允许将非托管指针包装为 <see cref="Memory{T}"/>。

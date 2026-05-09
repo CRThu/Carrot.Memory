@@ -1,4 +1,4 @@
-namespace Carrot.Memory
+namespace Carrot.Memory.Abstractions
 {
     /// <summary>
     /// 定义可持久化提交的契约。
