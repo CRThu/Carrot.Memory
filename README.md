@@ -112,13 +112,13 @@ using var paged = PagedBuffer2DFactory.Open<int>("data_path", options);
 
 | 测试维度 (Per Op) | Array2D | PagedHeap | MMF Mode | 结论 |
 | :--- | :---: | :---: | :---: | :--- |
-| **冷启动恢复 (Cold Start)** | 235.2 ms | 406.6 ms | **0.86 ms** | **MMF 完胜** (近乎瞬态的数据恢复能力) |
-| **顺序行访问 (Row Sum)** | 1.25 ns | **0.48 ns** | **0.47 ns** | **Paged 胜出** (~2.6x 提速，受益于 Span 遍历) |
-| **页内列访问 (Col InPage)** | **11.00 ns** | 15.47 ns | 15.59 ns | **Array 胜出** |
-| **跨页列访问 (Col CrossPage)** | **10.34 ns** | 33.15 ns | 37.76 ns | **Array 胜出** (跨页逻辑存在寻址开销) |
-| **全量列遍历 (Col Full)** | **10.99 ns** | 36.32 ns | 37.38 ns | **Array 胜出** |
-| **随机索引访问 (Random)** | **26.62 ns** | 36.98 ns | 37.03 ns | **Array 略快** (Paged 存在分页寻址开销) |
-| **大块数据写入 (SetBlock)** | 2.33 ns | 0.22 ns | **0.20 ns** | **Paged 胜出** (~11x 提速，写入稳定性极佳) |
+| **冷启动恢复 (Cold Start)** | 228.1 ms | 427.6 ms | **0.066 ms** | **MMF 完胜** (近乎瞬态的数据恢复能力) |
+| **顺序行访问 (Row Sum)** | 1.33 ns | **0.49 ns** | **0.49 ns** | **Heap,MMF 胜出** (~2.7x 提速，受益于 Span 遍历) |
+| **页内列访问 (Col InPage)** | **11.18 ns** | 27.93 ns | 33.43 ns | **Array 胜出** |
+| **跨页列访问 (Col CrossPage)** | **10.52 ns** | 28.80 ns | 31.02 ns | **Array 胜出** (跨页逻辑存在寻址开销) |
+| **全量列遍历 (Col Full)** | **11.11 ns** | 28.17 ns | 35.53 ns | **Array 胜出** |
+| **随机索引访问 (Random)** | **27.58 ns** | 39.12 ns | 39.57 ns | **Array 略快** (Paged 存在分页寻址开销) |
+| **大块数据写入 (SetBlock)** | 2.50 ns | 0.24 ns | **0.22 ns** | **Paged 胜出** (~11x 提速，写入稳定性极佳) |
 
 
 **数据解读：**
