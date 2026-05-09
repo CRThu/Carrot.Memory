@@ -19,9 +19,9 @@ namespace Carrot.Memory
             static ProviderRegistry()
             {
                 // 预先注册内置 Provider
-                Map["MmfPageProvider"] = path => new MmfPageProvider<T>(path);
-                Map["FileHeapProvider"] = path => new FileHeapProvider<T>(path);
-                Map["HeapProvider"] = _ => new HeapProvider<T>();
+                Map[MmfPageProvider<T>.Key] = path => new MmfPageProvider<T>(path);
+                Map[FileHeapProvider<T>.Key] = path => new FileHeapProvider<T>(path);
+                Map[HeapProvider<T>.Key] = _ => new HeapProvider<T>();
             }
         }
 
@@ -52,25 +52,10 @@ namespace Carrot.Memory
             // 确保 RootPath 被正确设置
             options.RootPath = path;
 
-            // 从注册表中获取对应的工厂方法
-            // 由于 ProviderType 可能是泛型名称（如 FileHeapProvider`1），我们需要截取前面的部分
-            string cleanType = options.ProviderType.Split('`')[0];
-
-            if (!ProviderRegistry<T>.Map.TryGetValue(cleanType, out var factory))
+            // 从注册表中获取对应的工厂方法，采用精确匹配
+            if (!ProviderRegistry<T>.Map.TryGetValue(options.ProviderType, out var factory))
             {
-                // 如果使用去尾后的名称仍未找到，再回退到模糊匹配
-                foreach (var kvp in ProviderRegistry<T>.Map)
-                {
-                    // 使用 StartsWith 而不是 Contains 以防止 FileHeapProvider 匹配到 HeapProvider
-                    if (cleanType.StartsWith(kvp.Key))
-                    {
-                        factory = kvp.Value;
-                        break;
-                    }
-                }
-
-                if (factory == null)
-                    throw new NotSupportedException($"未找到类型为 '{options.ProviderType}' 的存储供应者注册。");
+                throw new NotSupportedException($"未找到类型为 '{options.ProviderType}' 的存储供应者注册。");
             }
 
             var provider = factory(path);

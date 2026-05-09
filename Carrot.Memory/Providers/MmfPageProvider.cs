@@ -16,6 +16,9 @@ namespace Carrot.Memory
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged。</typeparam>
     public sealed class MmfPageProvider<T> : IPageProvider<T>, IFlushable, IDisposable where T : unmanaged
     {
+        public const string Key = "Mmf";
+        string IPageProvider<T>.ProviderKey => Key;
+
         private readonly string _rootPath;
         private readonly ConcurrentDictionary<int, (MemoryMappedFile Mmf, MemoryMappedViewAccessor Accessor)> _pages = new();
         private bool _disposed;

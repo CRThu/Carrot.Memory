@@ -11,6 +11,9 @@ namespace Carrot.Memory
     /// <typeparam name="T">存储的数据类型。</typeparam>
     public class HeapProvider<T> : IPageProvider<T>
     {
+        public const string Key = "Heap";
+        string IPageProvider<T>.ProviderKey => Key;
+
         /// <inheritdoc />
         public Memory2D<T> Create(int rows, int cols, int index) => 
             new T[rows * cols].AsMemory().AsMemory2D(rows, cols);

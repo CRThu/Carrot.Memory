@@ -12,6 +12,9 @@ namespace Carrot.Memory.Providers
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged 以确保二进制序列化的跨平台一致性。</typeparam>
     public class FileHeapProvider<T> : IPageProvider<T>, IFlushable where T : unmanaged
     {
+        public const string Key = "FileHeap";
+        string IPageProvider<T>.ProviderKey => Key;
+        
         private readonly string _rootPath;
         private readonly ConcurrentDictionary<int, Memory2D<T>> _pages = new();
 

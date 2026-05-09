@@ -10,6 +10,12 @@ namespace Carrot.Memory.Abstractions
     public interface IPageProvider<T>
     {
         /// <summary>
+        /// 获取供应者的唯一标识名称（如 "Mmf"）。
+        /// 该名称将用于元数据的持久化与注册表类型解析。
+        /// </summary>
+        string ProviderKey { get; }
+
+        /// <summary>
         /// 创建一个新的物理页面。
         /// </summary>
         /// <param name="rows">页面行数。</param>

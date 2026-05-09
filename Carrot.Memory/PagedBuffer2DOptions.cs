@@ -21,9 +21,9 @@ public class PagedBuffer2DOptions
     public string? RootPath { get; set; }
 
     /// <summary>
-    /// 标识存储策略（例如 "MmfPageProvider"）。
+    /// 标识存储策略（例如 "Mmf"）。
     /// </summary>
-    public string ProviderType { get; set; } = "MmfPageProvider";
+    public string ProviderType { get; set; } = "Mmf";
 
     /// <summary>
     /// 当前容器的行数（用于持久化恢复）。
