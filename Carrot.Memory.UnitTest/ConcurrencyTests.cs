@@ -18,7 +18,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task ConcurrentWriters_DifferentRows_AllDataCorrect()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int writeCount = 1000;
 
         var tasks = Enumerable.Range(0, writeCount).Select(i => Task.Run(() =>
@@ -38,7 +38,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task ConcurrentWriters_SamePosition_NoCorruption()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int writeCount = 500;
 
         var tasks = Enumerable.Range(0, writeCount).Select(i => Task.Run(() =>
@@ -56,7 +56,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task ConcurrentReadersAndWriters_DuringExpansion_Stable()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         bool running = true;
         int targetRows = 2000;
 
@@ -88,7 +88,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task Commit_DuringConcurrentExpansion_Safe()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         bool running = true;
 
         var commitTask = Task.Run(() =>

@@ -12,20 +12,9 @@ namespace Carrot.Memory
         private const string MetadataFileName = "metadata.json";
 
         /// <summary>
-        /// 内部元数据模型。
+        /// 从指定目录加载配置元数据。
         /// </summary>
-        public class Metadata
-        {
-            public int RowCount { get; set; }
-            public int Width { get; set; }
-            public int PageSize { get; set; }
-            public string ProviderType { get; set; } = "Default";
-        }
-
-        /// <summary>
-        /// 从指定目录加载元数据。
-        /// </summary>
-        public static Metadata Load(string rootPath)
+        public static PagedBuffer2DOptions? Load(string rootPath)
         {
             var metadataPath = Path.Combine(rootPath, MetadataFileName);
             if (!File.Exists(metadataPath)) return null;
@@ -33,7 +22,9 @@ namespace Carrot.Memory
             try
             {
                 var json = File.ReadAllText(metadataPath);
-                return JsonSerializer.Deserialize<Metadata>(json);
+                var options = JsonSerializer.Deserialize<PagedBuffer2DOptions>(json);
+                if (options != null) options.RootPath = rootPath;
+                return options;
             }
             catch
             {
@@ -42,23 +33,20 @@ namespace Carrot.Memory
         }
 
         /// <summary>
-        /// 将元数据持久化到指定目录。
+        /// 将配置元数据持久化到指定目录。
         /// 采用“临时文件 + 覆盖重命名”策略确保写入的原子性。
         /// </summary>
-        public static void Save(string rootPath, int rowCount, int width, int pageSize, string providerType)
+        public static void Save(PagedBuffer2DOptions options)
         {
-            if (!Directory.Exists(rootPath)) Directory.CreateDirectory(rootPath);
-            var metadataPath = Path.Combine(rootPath, MetadataFileName);
+            if (string.IsNullOrEmpty(options.RootPath)) 
+                throw new ArgumentException("保存元数据时 RootPath 不能为空。");
 
-            var meta = new Metadata
-            {
-                RowCount = rowCount,
-                Width = width,
-                PageSize = pageSize,
-                ProviderType = providerType
-            };
+            if (!Directory.Exists(options.RootPath)) 
+                Directory.CreateDirectory(options.RootPath);
+            
+            var metadataPath = Path.Combine(options.RootPath, MetadataFileName);
 
-            var json = JsonSerializer.Serialize(meta, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(options, new JsonSerializerOptions { WriteIndented = true });
             string tmpPath = metadataPath + ".tmp";
 
             try

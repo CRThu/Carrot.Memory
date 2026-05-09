@@ -16,33 +16,34 @@ namespace Carrot.Memory
         /// </summary>
         /// <typeparam name="T">存储的数据类型，必须是 unmanaged。</typeparam>
         /// <param name="path">持久化根目录路径。</param>
-        /// <param name="options">可选的初始化配置。若元数据已存在，则优先从元数据恢复。</param>
+        /// <param name="overrides">可选的初始化配置。若元数据已存在，则优先从元数据恢复，overrides 仅在新建或作为补充时生效。</param>
         /// <returns>初始化完成的容器实例。</returns>
-        public static PagedBuffer2D<T> Open<T>(string path, PagedBuffer2DOptions? options = null) 
+        public static PagedBuffer2D<T> Open<T>(string path, PagedBuffer2DOptions? overrides = null) 
             where T : unmanaged
         {
-            var meta = MetadataManager.Load(path);
-            IPageProvider<T> provider;
+            // 优先级：磁盘元数据 > 传入的 overrides > 默认配置
+            var options = MetadataManager.Load(path) ?? overrides ?? new PagedBuffer2DOptions { RootPath = path };
+            
+            // 确保 RootPath 被正确设置
+            options.RootPath = path;
 
-            if (meta != null)
-            {
-                provider = CreateProviderFromType<T>(meta.ProviderType, path);
-                return new PagedBuffer2D<T>(meta.Width, meta.PageSize, provider, path);
-            }
-            else
-            {
-                // 新建逻辑
-                options ??= new PagedBuffer2DOptions();
-                provider = new MmfPageProvider<T>(path); // 默认策略
-                return new PagedBuffer2D<T>(options.Width, options.PageSize, provider, path);
-            }
+            var provider = CreateProviderFromType<T>(options.ProviderType, path);
+            
+            // 使用 options 中的 RowCount 初始化容器
+            return new PagedBuffer2D<T>(options, provider, options.RowCount);
         }
 
         private static IPageProvider<T> CreateProviderFromType<T>(string type, string path) where T : unmanaged
         {
-            // 这里的 type 可能是类名全称或简称，或者是之前 nameof(MmfPageProvider<T>) 生成的字符串
-            if (type.Contains("MmfPageProvider")) return new MmfPageProvider<T>(path);
-            if (type.Contains("FileHeapProvider")) return new FileHeapProvider<T>(path);
+            // 简单的映射逻辑，可根据需要扩展
+            if (string.IsNullOrEmpty(type) || type.Contains("MmfPageProvider")) 
+                return new MmfPageProvider<T>(path);
+            
+            if (type.Contains("FileHeapProvider")) 
+                return new FileHeapProvider<T>(path);
+
+            if (type.Contains("HeapProvider"))
+                return new HeapProvider<T>();
             
             return new MmfPageProvider<T>(path);
         }

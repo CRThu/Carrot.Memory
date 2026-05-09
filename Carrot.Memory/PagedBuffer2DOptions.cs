@@ -19,4 +19,14 @@ public class PagedBuffer2DOptions
     /// 数据持久化的根目录路径。
     /// </summary>
     public string? RootPath { get; set; }
+
+    /// <summary>
+    /// 标识存储策略（例如 "MmfPageProvider"）。
+    /// </summary>
+    public string ProviderType { get; set; } = "MmfPageProvider";
+
+    /// <summary>
+    /// 当前容器的行数（用于持久化恢复）。
+    /// </summary>
+    public int RowCount { get; set; }
 }

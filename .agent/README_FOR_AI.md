@@ -29,8 +29,9 @@
 ### 3. 持久化扩展 (Persistence Extension)
 通过 **能力接口 + 组合模式** 实现状态同步：
 - **职责解耦**：`PagedBuffer2D` 容器实现 `IPersistable` (Commit)，负责逻辑状态提交；Provider 实现 `IFlushable` (Flush)，负责物理页同步。
-- **状态加载**：`PagedBuffer2D` 构造函数直接调用 `MetadataManager.Load` 从 `rootPath` 恢复逻辑行数，不再依赖 Provider 提供加载逻辑。
-- **原子提交**：容器的 `Commit()` 依次调用 `Provider.Flush()` 与 `MetadataManager.Save()`。这种分层确保了“物理同步 -> 逻辑保存”的正确顺序。
+- **依赖注入初始化**：`PagedBuffer2D` 构造函数不再包含任何 IO 操作（如加载元数据），仅负责逻辑组件的组装。配置解析、元数据加载及 Provider 选型逻辑全部上移至 `PagedBuffer2DFactory`。
+- **状态恢复**：容器通过构造函数接收 `initialRowCount` 参数，实现从持久化元数据的平滑恢复。
+- **原子提交**：容器的 `Commit()` 依次调用 `Provider.Flush()` 与 `MetadataManager.Save(options)`。这种分层确保了“物理同步 -> 逻辑保存”的正确顺序。
 - **线程安全约束**：Provider 内部管理页面引用的集合必须是线程安全的（如 `ConcurrentDictionary`），以配合容器层的分层锁模型。
 - **生命周期保障**：`Dispose` 时会自动调用 `Commit()`，确保即使未手动同步，数据也能在容器关闭时安全入盘。
 
@@ -42,7 +43,7 @@
 
 ### 5. 工厂初始化协议 (Factory Initialization Protocol)
 `PagedBuffer2DFactory.Open<T>` 是推荐的生命周期管理方式：
-- **探测 (Probe)**：通过 `MetadataManager.Load` 探测目标路径。
-- **恢复 (Restore)**：若存在元数据，根据其记录的 `ProviderType` 自动实例化正确的供应者，并委托 `PagedBuffer2D` 恢复状态。
-- **新建 (Create)**：若不存在，根据 `PagedBuffer2DOptions` 初始化，默认使用 `MMF` 策略。
-- **灵活性**：工厂仅负责 Provider 的选型，核心逻辑状态的维护由容器主类闭环处理。
+- **探测 (Probe)**：通过 `MetadataManager.Load` 探测目标路径并加载 `PagedBuffer2DOptions`。
+- **配置优先级**：磁盘元数据配置优先于传入的 `overrides`。`overrides` 仅在新建目录或作为元数据缺失时的补充。
+- **新建 (Create)**：若不存在元数据，根据 `overrides` 或默认 `PagedBuffer2DOptions` 进行初始化。
+- **纯净构造**：工厂负责编排所有外部资源（Provider、Options、Metadata），最后注入 `PagedBuffer2D` 构造函数，使其保持为纯内存逻辑组件。

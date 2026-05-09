@@ -37,52 +37,38 @@ namespace Carrot.Memory
         public int Width => _width;
 
         /// <summary>
-        /// 初始化 <see cref="PagedPagedBuffer2D{T}"/> 类的新实例。
+        /// 初始化 <see cref="PagedBuffer2D{T}"/> 类的新实例。
         /// </summary>
-        /// <param name="width">每一行的列数（固定宽度）。</param>
-        /// <param name="pageSize">分页行数（必须是 2 的幂，以便使用位运算优化。</param>
-        /// <param name="provider">页面供应者。如果为 null 则使用默认堆内存分配。</param>
-        /// <param name="rootPath">持久化根目录路径。如果不为 null，则会尝试从中加载或保存元数据。</param>
-        public PagedBuffer2D(int width, int pageSize, IPageProvider<T>? provider = null, string? rootPath = null)
+        /// <param name="options">配置选项。</param>
+        /// <param name="provider">页面供应者。</param>
+        /// <param name="initialRowCount">初始行数（通常从元数据恢复）。</param>
+        public PagedBuffer2D(PagedBuffer2DOptions options, IPageProvider<T> provider, int initialRowCount = 0)
         {
-            if (pageSize <= 0 || (pageSize & (pageSize - 1)) != 0)
+            if (options.PageSize <= 0 || (options.PageSize & (options.PageSize - 1)) != 0)
             {
-                throw new ArgumentException("pageSize 必须是 2 的幂。", nameof(pageSize));
+                throw new ArgumentException("pageSize 必须是 2 的幂。", nameof(options.PageSize));
             }
 
-            _width = width;
-            _pageSize = pageSize;
-            _shift = BitOperations.TrailingZeroCount((uint)pageSize);
+            _width = options.Width;
+            _pageSize = options.PageSize;
+            _shift = BitOperations.TrailingZeroCount((uint)_pageSize);
             _mask = _pageSize - 1;
             _pages = new Memory2D<T>[InitialPageCapacity];
-            _provider = provider ?? new HeapProvider<T>();
-            _rootPath = rootPath;
+            _provider = provider;
+            _rootPath = options.RootPath;
+            _rowCount = initialRowCount;
 
-            // 加载持久化元数据
-            if (_rootPath != null)
+            // 如果有初始行数，预加载已有的分页
+            if (_rowCount > 0)
             {
-                var meta = MetadataManager.Load(_rootPath);
-                if (meta != null)
+                _rwLock.EnterWriteLock();
+                try
                 {
-                    if (meta.Width != _width || meta.PageSize != _pageSize)
-                    {
-                        throw new InvalidOperationException("持久化元数据与容器配置不一致。");
-                    }
-                    _rowCount = meta.RowCount;
-
-                    // 预加载已有的分页
-                    if (_rowCount > 0)
-                    {
-                        _rwLock.EnterWriteLock();
-                        try
-                        {
-                            EnsurePageExists((_rowCount - 1) >> _shift);
-                        }
-                        finally
-                        {
-                            _rwLock.ExitWriteLock();
-                        }
-                    }
+                    EnsurePageExists((_rowCount - 1) >> _shift);
+                }
+                finally
+                {
+                    _rwLock.ExitWriteLock();
                 }
             }
         }
@@ -286,7 +272,14 @@ namespace Carrot.Memory
                 // 2. 无论供应者是否支持物理同步，只要有根目录，就同步容器元数据
                 if (_rootPath != null)
                 {
-                    MetadataManager.Save(_rootPath, Volatile.Read(ref _rowCount), _width, _pageSize, _provider.GetType().Name);
+                    MetadataManager.Save(new PagedBuffer2DOptions
+                    {
+                        Width = _width,
+                        PageSize = _pageSize,
+                        RootPath = _rootPath,
+                        RowCount = Volatile.Read(ref _rowCount),
+                        ProviderType = _provider.GetType().Name
+                    });
                 }
             }
             catch (Exception ex)

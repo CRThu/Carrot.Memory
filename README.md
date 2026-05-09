@@ -19,13 +19,9 @@
 ```csharp
 using Carrot.Memory;
 
-// 推荐方式：直接通过 PagedBuffer2DFactory 工厂打开目录
-// 工厂会自动探测 metadata.json 并恢复对应的 Provider (MMF 或 FileHeap) 与容器规模
-using var pagedBuffer = PagedBuffer2DFactory.Open<int>("data_path", new PagedBuffer2DOptions 
-{ 
-    Width = 100, 
-    PageSize = 1024 
-});
+// 统一入口：自动识别 Metadata 或使用默认配置
+var options = new PagedBuffer2DOptions { Width = 100, PageSize = 1024 };
+using var pagedBuffer = PagedBuffer2DFactory.Open<int>("data_path", options);
 ```
 
 ### 2. 写入数据
@@ -76,9 +72,10 @@ pagedBuffer.Commit(); // 触发物理同步并原子化保存元数据
 - **FileHeapProvider**：基于托管堆缓存，同步时将数据序列化到二进制文件。
 
 ```csharp
-// 若需手动指定 Provider，可在 PagedBuffer2D 构造函数中注入
+// 若需手动指定 Provider，可直接通过构造函数注入
+var options = new PagedBuffer2DOptions { Width = 1024, PageSize = 1024, RootPath = "my_path" };
 var provider = new FileHeapProvider<int>("my_path");
-var paged = new PagedBuffer2D<int>(1024, 1024, provider, "my_path");
+var paged = new PagedBuffer2D<int>(options, provider);
 ```
 
 ## 线程安全协议

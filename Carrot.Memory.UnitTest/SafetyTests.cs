@@ -19,7 +19,7 @@ public class SafetyTests
     [TestMethod]
     public void SetElement_AfterDispose_ShouldThrowObjectDisposedException()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         paged.Dispose();
 
         try
@@ -33,7 +33,7 @@ public class SafetyTests
     [TestMethod]
     public void ReadOnlyView_ModifyAttempt_VerifyIsolation()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         paged.SetElement(0, 0, 100);
         
         IReadOnlyBuffer2D<int> readOnly = paged.AsReadOnly();
@@ -50,7 +50,7 @@ public class SafetyTests
     [TestMethod]
     public void Indexer_AccessOutOfRange_ShouldThrowIndexOutOfRangeException()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         paged.SetElement(0, 0, 1);
 
         try
@@ -71,7 +71,7 @@ public class SafetyTests
     [TestMethod]
     public void SetBlock_InvalidWidthBound_ShouldThrowArgumentException()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int[,] invalidData = new int[1, DefaultWidth + 1];
 
         try

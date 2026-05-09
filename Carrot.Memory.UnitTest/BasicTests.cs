@@ -17,14 +17,14 @@ public class BasicTests
     [TestMethod]
     public void RowCount_Initial_ShouldBeZero()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         Assert.AreEqual(0, paged.RowCount);
     }
 
     [TestMethod]
     public void SetElement_ValidPosition_ShouldUpdateDataAndRowCount()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         paged.SetElement(10, 5, 42);
         
         Assert.AreEqual(11, paged.RowCount);
@@ -34,7 +34,7 @@ public class BasicTests
     [TestMethod]
     public void SetRow_ValidPosition_ShouldUpdateData()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int[] data = { 1, 2, 3, 4, 5 };
         paged.SetRow(0, 10, data);
 
@@ -47,7 +47,7 @@ public class BasicTests
     [TestMethod]
     public void SetColumn_ValidPosition_ShouldUpdateData()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int[] data = { 10, 20, 30, 40 };
         paged.SetColumn(0, 5, data);
 
@@ -60,7 +60,7 @@ public class BasicTests
     [TestMethod]
     public void SetBlock_AcrossPages_DataCorrect()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int totalRows = 3000;
         int[,] sourceData = new int[totalRows, DefaultWidth];
         
@@ -79,7 +79,7 @@ public class BasicTests
     [TestMethod]
     public void GetRowView_ModifyElement_ReflectedInParent()
     {
-        var paged = new PagedBuffer2D<int>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         paged.SetElement(0, 0, 100);
 
         RowView<int> view = paged.GetRowView(0, 0, 1);
@@ -91,7 +91,7 @@ public class BasicTests
     [TestMethod]
     public void GetColumnView_AcrossPages_DataCorrect()
     {
-        var paged = new PagedBuffer2D<double>(DefaultWidth, PageSize);
+        var paged = new PagedBuffer2D<double>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<double>());
         int startRow = PageSize - 10;
         int len = 20;
         
