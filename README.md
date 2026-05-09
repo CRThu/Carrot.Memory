@@ -85,7 +85,7 @@ var paged = new PagedBuffer2D<int>(options, provider);
 PagedBuffer2DFactory.RegisterProvider("Cloud", path => new CloudPageProvider<int>(path));
 
 // 然后即可在 options 中使用该类型
-var options = new PagedBuffer2DOptions { ProviderType = "Cloud" };
+var options = new PagedBuffer2DOptions { ProviderKey = "Cloud" };
 using var paged = PagedBuffer2DFactory.Open<int>("data_path", options);
 ```
 

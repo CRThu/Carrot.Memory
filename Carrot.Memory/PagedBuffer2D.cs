@@ -278,7 +278,7 @@ namespace Carrot.Memory
                         PageSize = _pageSize,
                         RootPath = _rootPath,
                         RowCount = Volatile.Read(ref _rowCount),
-                        ProviderType = _provider.ProviderKey
+                        ProviderKey = _provider.ProviderKey
                     });
                 }
             }

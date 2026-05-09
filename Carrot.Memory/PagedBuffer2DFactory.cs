@@ -28,12 +28,12 @@ namespace Carrot.Memory
         /// <summary>
         /// 注册自定义存储介质供应者。
         /// </summary>
-        /// <param name="name">Provider 的唯一名称（对应 Options 中的 ProviderType）。</param>
+        /// <param name="providerKey">Provider 的唯一名称（对应 Options 中的 ProviderKey）。</param>
         /// <param name="factory">生成 Provider 实例的工厂方法。输入参数为 rootPath，输出为 IPageProvider 实例。</param>
-        public static void RegisterProvider<T>(string name, Func<string, IPageProvider<T>> factory)
+        public static void RegisterProvider<T>(string providerKey, Func<string, IPageProvider<T>> factory)
             where T : unmanaged
         {
-            ProviderRegistry<T>.Map[name] = factory;
+            ProviderRegistry<T>.Map[providerKey] = factory;
         }
 
         /// <summary>
@@ -53,9 +53,9 @@ namespace Carrot.Memory
             options.RootPath = path;
 
             // 从注册表中获取对应的工厂方法，采用精确匹配
-            if (!ProviderRegistry<T>.Map.TryGetValue(options.ProviderType, out var factory))
+            if (!ProviderRegistry<T>.Map.TryGetValue(options.ProviderKey, out var factory))
             {
-                throw new NotSupportedException($"未找到类型为 '{options.ProviderType}' 的存储供应者注册。");
+                throw new NotSupportedException($"未找到类型为 '{options.ProviderKey}' 的存储供应者注册。");
             }
 
             var provider = factory(path);

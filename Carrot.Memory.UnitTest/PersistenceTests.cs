@@ -45,7 +45,7 @@ namespace Carrot.Memory.UnitTest
         {
             // 阶段 1：创建容器 A，写入数据并持久化
             {
-                var options = new PagedBuffer2DOptions { Width = Width, PageSize = PageSize, ProviderType = FileHeapProvider<int>.Key };
+                var options = new PagedBuffer2DOptions { Width = Width, PageSize = PageSize, ProviderKey = FileHeapProvider<int>.Key };
                 using var pagedA = PagedBuffer2DFactory.Open<int>(_currentTestPath, options);
                 
                 pagedA.SetElement(0, 0, 123);
