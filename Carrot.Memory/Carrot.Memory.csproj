@@ -5,10 +5,40 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+        <Title>$(AssemblyName)</Title>
+        <Authors>CRTHu</Authors>
+        <Version>1.0.0-dev</Version>
+        <Description>一个基于分页机制的高性能二维内存容器，专为大规模数据处理设计。</Description>
+        <PackageTags>Memory;Buffer;2D;HighPerformance;MMF;Paging</PackageTags>
+        <PackageProjectUrl>https://github.com/CRTHu/Carrot.Memory</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/CRTHu/Carrot.Memory</RepositoryUrl>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
+
+
+    <ItemGroup>
+        <None Include="..\LICENSE">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+        </None>
+        <None Include="..\README.md">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+        </None>
+    </ItemGroup>
+
 
     <ItemGroup>
       <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
+      <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
     </ItemGroup>
 
 </Project>
