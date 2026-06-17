@@ -1,9 +1,9 @@
 namespace Carrot.Memory;
 
 /// <summary>
-/// 封装 PagedBuffer2D 的初始化配置参数。
+/// 封装 Buffer2D 的初始化配置参数。
 /// </summary>
-public class PagedBuffer2DOptions
+public class Buffer2DOptions
 {
     /// <summary>
     /// 容器宽度（列数）。默认为 1024。
@@ -16,14 +16,9 @@ public class PagedBuffer2DOptions
     public int PageSize { get; set; } = 1024;
 
     /// <summary>
-    /// 数据持久化的根目录路径。
+    /// 标识存储策略（例如 "Heap"、"Mmf"）。
     /// </summary>
-    public string? RootPath { get; set; }
-
-    /// <summary>
-    /// 标识存储策略（例如 "Mmf"）。
-    /// </summary>
-    public string ProviderKey { get; set; } = "Mmf";
+    public string ProviderKey { get; set; } = "Heap";
 
     /// <summary>
     /// 当前容器的行数（用于持久化恢复）。

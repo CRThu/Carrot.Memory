@@ -11,6 +11,7 @@ namespace Carrot.Memory
     /// <typeparam name="T">存储的数据类型。</typeparam>
     public class HeapProvider<T> : IPageProvider<T>
     {
+        /// <summary>Provider 标识键。</summary>
         public const string Key = "Heap";
         string IPageProvider<T>.ProviderKey => Key;
 

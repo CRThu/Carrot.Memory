@@ -16,6 +16,7 @@ namespace Carrot.Memory
     /// <typeparam name="T">存储的数据类型，必须是 unmanaged。</typeparam>
     public sealed class MmfPageProvider<T> : IPageProvider<T>, IFlushable, IDisposable where T : unmanaged
     {
+        /// <summary>Provider 标识键。</summary>
         public const string Key = "Mmf";
         string IPageProvider<T>.ProviderKey => Key;
 

@@ -25,7 +25,7 @@ namespace Carrot.Memory
         private readonly int _pageSize;
         private readonly int _width;
         private readonly IPageProvider<T> _provider;
-        private readonly string? _rootPath;
+        private readonly string? _persistPath;
 
         private int _rowCount = 0;
         private bool _disposed;
@@ -42,7 +42,8 @@ namespace Carrot.Memory
         /// <param name="options">配置选项。</param>
         /// <param name="provider">页面供应者。</param>
         /// <param name="initialRowCount">初始行数（通常从元数据恢复）。</param>
-        public PagedBuffer2D(PagedBuffer2DOptions options, IPageProvider<T> provider, int initialRowCount = 0)
+        /// <param name="persistPath">可选的持久化路径，传入后 Commit() 无需再指定路径。</param>
+        public PagedBuffer2D(Buffer2DOptions options, IPageProvider<T> provider, int initialRowCount = 0, string? persistPath = null)
         {
             if (options.PageSize <= 0 || (options.PageSize & (options.PageSize - 1)) != 0)
             {
@@ -55,7 +56,7 @@ namespace Carrot.Memory
             _mask = _pageSize - 1;
             _pages = new Memory2D<T>[InitialPageCapacity];
             _provider = provider;
-            _rootPath = options.RootPath;
+            _persistPath = persistPath;
             _rowCount = initialRowCount;
 
             // 如果有初始行数，预加载已有的分页
@@ -256,30 +257,29 @@ namespace Carrot.Memory
 
         #endregion
 
+        /// <summary>
+        /// 将当前内存更改持久化到已绑定的路径。
+        /// </summary>
         public void Commit()
         {
+            if (_persistPath == null)
+                throw new InvalidOperationException("未指定持久化路径。请在创建或打开时传入 persistPath。");
             if (_disposed) throw new ObjectDisposedException(nameof(PagedBuffer2D<T>));
 
             _rwLock.EnterReadLock();
             try
             {
-                // 1. 如果供应者支持物理刷新，则触发其同步逻辑
+                MetadataManager.Save<Buffer2DOptions>(_persistPath, new Buffer2DOptions
+                {
+                    Width = _width,
+                    PageSize = _pageSize,
+                    RowCount = Volatile.Read(ref _rowCount),
+                    ProviderKey = _provider.ProviderKey
+                });
+
                 if (_provider is IFlushable flushable)
                 {
                     flushable.Flush();
-                }
-
-                // 2. 无论供应者是否支持物理同步，只要有根目录，就同步容器元数据
-                if (_rootPath != null)
-                {
-                    MetadataManager.Save<PagedBuffer2DOptions>(_rootPath, new PagedBuffer2DOptions
-                    {
-                        Width = _width,
-                        PageSize = _pageSize,
-                        RootPath = _rootPath,
-                        RowCount = Volatile.Read(ref _rowCount),
-                        ProviderKey = _provider.ProviderKey
-                    });
                 }
             }
             catch (Exception ex)
@@ -298,25 +298,9 @@ namespace Carrot.Memory
         public void Dispose()
         {
             if (_disposed) return;
-            
-            // 释放前自动执行最后一次持久化提交
-            try
-            {
-                Commit();
-            }
-            catch
-            {
-                // 在 Dispose 中忽略提交异常，防止阻塞释放流程
-            }
-            
             _rwLock.Dispose();
-
-            // 若供应者持有非托管资源（如 MmfPageProvider），则执行释放
             if (_provider is IDisposable disposableProvider)
-            {
                 disposableProvider.Dispose();
-            }
-
             _disposed = true;
         }
     }

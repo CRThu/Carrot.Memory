@@ -6,8 +6,7 @@ namespace Carrot.Memory.Abstractions
     public interface IPersistable
     {
         /// <summary>
-        /// 提交当前所有的内存更改到持久化存储。
-        /// 该操作应当保证数据页与元数据的同步原子性。
+        /// 将当前内存更改持久化到已绑定的路径。
         /// </summary>
         void Commit();
     }

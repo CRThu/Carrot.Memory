@@ -8,7 +8,7 @@
 
         <Title>$(AssemblyName)</Title>
         <Authors>CRTHu</Authors>
-        <Version>1.0.0-dev</Version>
+        <Version>1.1.0</Version>
         <Description>一个基于分页机制的高性能二维内存容器，专为大规模数据处理设计。</Description>
         <PackageTags>Memory;Buffer;2D;HighPerformance;MMF;Paging</PackageTags>
         <PackageProjectUrl>https://github.com/CRTHu/Carrot.Memory</PackageProjectUrl>

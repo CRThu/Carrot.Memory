@@ -45,8 +45,8 @@ namespace Carrot.Memory.UnitTest
         {
             // 阶段 1：创建容器 A，写入数据并持久化
             {
-                var options = new PagedBuffer2DOptions { Width = Width, PageSize = PageSize, ProviderKey = FileHeapProvider<int>.Key };
-                using var pagedA = PagedBuffer2DFactory.Open<int>(_currentTestPath, options);
+                var options = new Buffer2DOptions { Width = Width, PageSize = PageSize, ProviderKey = FileHeapProvider<int>.Key };
+                using var pagedA = Buffer2D.Open<int>(_currentTestPath, options);
                 
                 pagedA.SetElement(0, 0, 123);
                 pagedA.SetElement(PageSize + 5, 2, 456);
@@ -59,7 +59,7 @@ namespace Carrot.Memory.UnitTest
 
             // 阶段 2：创建容器 B，指向相同路径，验证自动恢复
             {
-                using var pagedB = PagedBuffer2DFactory.Open<int>(_currentTestPath);
+                using var pagedB = Buffer2D.Open<int>(_currentTestPath);
 
                 // 验证 RowCount 恢复
                 Assert.AreEqual(PageSize + 6, pagedB.RowCount, "RowCount 恢复失败");

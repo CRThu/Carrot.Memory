@@ -26,7 +26,7 @@ namespace Carrot.Memory.Benchmarks
         public void Setup()
         {
             _baselineArray = new int[_totalRows, _width];
-            var options = new PagedBuffer2DOptions { Width = _width, PageSize = _pageSize };
+            var options = new Buffer2DOptions { Width = _width, PageSize = _pageSize };
             _heapMemory = new PagedBuffer2D<int>(options, new HeapProvider<int>());
             
             _mmfPath = Path.Combine(Path.GetTempPath(), "Carrot_Bench_MMF_ColR_" + Guid.NewGuid().ToString("N"));

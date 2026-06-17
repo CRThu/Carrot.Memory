@@ -10,7 +10,7 @@
 - **并发安全 (MWMR)**：内置 `ReaderWriterLockSlim` 与 `Volatile` 屏障，支持多线程并发读写与动态原子扩容。
 - **零拷贝视图**：提供 `RowView<T>` / `ColumnView<T>` 及其只读版本，支持对行（Row）和列（Column）的高性能无损切片访问。
 - **解耦持久化**：采用 **Provider + MetadataManager** 的组合模式。Provider 专注于物理 IO（MMF、文件堆等），`MetadataManager` 统一处理 JSON 元数据持久化。
-- **原子提交**：通过 `Commit()` 方法（`IPersistable` 接口）执行“物理页刷新 + 临时文件重命名”策略，确保元数据与数据页同步的原子性。
+- **显式提交**：通过 `Commit()` 方法（`IPersistable` 接口）执行"物理页刷新 + 元数据保存"，持久化路径在创建或打开时绑定，`Dispose()` 不再自动提交。
 
 ## 快速开始
 
@@ -19,72 +19,75 @@
 ```csharp
 using Carrot.Memory;
 
-// 统一入口：自动识别 Metadata 或使用默认配置
-var options = new PagedBuffer2DOptions { Width = 100, PageSize = 1024 };
-using var pagedBuffer = PagedBuffer2DFactory.Open<int>("data_path", options);
+// 纯内存模式（推荐用于回测等一次性加载场景）
+using var buffer = Buffer2D.Create<int>(width: 100, rowCount: 50000);
+
+// 从磁盘恢复（用于持久化场景）
+using var buffer = Buffer2D.Open<int>("data_path");
 ```
 
 ### 2. 写入数据
 
 ```csharp
 // 直接索引写入
-pagedBuffer[0, 0] = 42;
+buffer[0, 0] = 42;
 
 // 受保护的单元素设置
-pagedBuffer.SetElement(0, 0, 42);
+buffer.SetElement(0, 0, 42);
 
 // 批量设置单行 (RowView)
 int[] rowData = new int[100];
-pagedBuffer.SetRow(5, 0, rowData);
+buffer.SetRow(5, 0, rowData);
 
 // 批量设置单列 (ColumnView - Buffer2DExtensions)
 int[] colData = new int[100];
-pagedBuffer.SetColumn(5, 0, colData);
+buffer.SetColumn(5, 0, colData);
 
 // 批量设置二维块 (Block)
 int[,] blockData = new int[10, 10];
-pagedBuffer.SetBlock(10, 10, blockData.AsSpan2D());
+buffer.SetBlock(10, 10, blockData.AsSpan2D());
 ```
 
 ### 3. 数据访问与视图
 
 ```csharp
 // 获取只读视图 (推荐用于共享读取)
-IReadOnlyBuffer2D<int> readOnlyView = pagedBuffer.AsReadOnly();
+IReadOnlyBuffer2D<int> readOnlyView = buffer.AsReadOnly();
 
 // 获取行视图 (支持修改，除非使用 ReadOnlyView)
-var rowView = pagedBuffer.GetRowView(row: 5, col: 0, len: 10);
+var rowView = buffer.GetRowView(row: 5, col: 0, len: 10);
 rowView[0] = 99; // 修改底层内存
 
 // 获取跨页的列视图 (封装了行列索引寻址逻辑)
-var colView = pagedBuffer.GetColumnView(row: 500, col: 5, len: 200);
+var colView = buffer.GetColumnView(row: 500, col: 5, len: 200);
 int v = colView[150]; 
 ```
 
 ### 4. 提交持久化
 
 ```csharp
-// 触发物理同步并原子化保存元数据
-// 在 Dispose() 时会自动调用一次 Commit()
-pagedBuffer.Commit(); 
+// 显式触发物理同步并保存元数据
+// 路径在 Buffer2D.Open 时已绑定，无需再次指定
+buffer.Commit(); 
 ```
 
 ## 存储持久化详解
 
 本项目通过 `MetadataManager` 管理 `metadata.json`，支持以下持久化介质：
 
-- **MmfPageProvider (默认)**：基于内存映射文件，利用 OS 页面交换实现零拷贝 IO。
+- **MmfPageProvider**：基于内存映射文件，利用 OS 页面交换实现零拷贝 IO。
 - **FileHeapProvider**：基于托管堆缓存，同步时将数据序列化到二进制文件。
+- **HeapProvider**：纯内存 Provider，零磁盘依赖，适用于一次性加载场景。
 
 ### 扩展存储介质
-本项目支持自定义存储介质。您可以通过 `PagedBuffer2DFactory.RegisterProvider` 注入新的 Provider：
+本项目支持自定义存储介质。您可以通过 `Buffer2D.RegisterProvider` 注入新的 Provider：
 
 ```csharp
-PagedBuffer2DFactory.RegisterProvider("Cloud", path => new CloudPageProvider<int>(path));
+Buffer2D.RegisterProvider("Cloud", path => new CloudPageProvider<int>(path));
 
 // 然后即可在 options 中使用该类型
-var options = new PagedBuffer2DOptions { ProviderKey = "Cloud" };
-using var paged = PagedBuffer2DFactory.Open<int>("data_path", options);
+var options = new Buffer2DOptions { ProviderKey = "Cloud" };
+using var buffer = Buffer2D.Open<int>("data_path", options);
 ```
 
 ## 线程安全协议
@@ -133,6 +136,3 @@ using var paged = PagedBuffer2DFactory.Open<int>("data_path", options);
 ## 许可证
 
 Apache License 2.0
-
----
-*本README由 Gemini 3 Flash 生成*

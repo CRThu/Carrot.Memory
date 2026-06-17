@@ -18,7 +18,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task ConcurrentWriters_DifferentRows_AllDataCorrect()
     {
-        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
+        var paged = new PagedBuffer2D<int>(new Buffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int writeCount = 1000;
 
         var tasks = Enumerable.Range(0, writeCount).Select(i => Task.Run(() =>
@@ -38,7 +38,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task ConcurrentWriters_SamePosition_NoCorruption()
     {
-        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
+        var paged = new PagedBuffer2D<int>(new Buffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         int writeCount = 500;
 
         var tasks = Enumerable.Range(0, writeCount).Select(i => Task.Run(() =>
@@ -56,7 +56,7 @@ public class ConcurrencyTests
     [TestMethod]
     public async Task ConcurrentReadersAndWriters_DuringExpansion_Stable()
     {
-        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
+        var paged = new PagedBuffer2D<int>(new Buffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
         bool running = true;
         int targetRows = 2000;
 
@@ -86,27 +86,38 @@ public class ConcurrencyTests
     }
 
     [TestMethod]
-    public async Task Commit_DuringConcurrentExpansion_Safe()
+    public async Task ConcurrentExpansion_NoCorruption()
     {
-        var paged = new PagedBuffer2D<int>(new PagedBuffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
-        bool running = true;
+        var paged = new PagedBuffer2D<int>(new Buffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
+        int targetRows = 2000;
 
-        var commitTask = Task.Run(() =>
+        var writerTask = Task.Run(() =>
         {
-            while (running)
+            for (int i = 0; i < targetRows; i++)
             {
-                paged.Commit();
+                paged.SetElement(i, 0, i);
             }
         });
 
-        // 密集扩容
-        for (int i = 0; i < 50; i++)
+        var readerTask = Task.Run(() =>
         {
-            paged.SetElement(i * PageSize, 0, i);
-            await Task.Delay(1);
-        }
+            while (!paged.RowCount.Equals(targetRows))
+            {
+                int rowCount = paged.RowCount;
+                if (rowCount > 0)
+                {
+                    int r = Random.Shared.Next(rowCount);
+                    _ = paged[r, 0];
+                }
+            }
+        });
 
-        running = false;
-        await commitTask;
+        await Task.WhenAll(writerTask, readerTask);
+
+        Assert.AreEqual(targetRows, paged.RowCount);
+        for (int i = 0; i < targetRows; i++)
+        {
+            Assert.AreEqual(i, paged[i, 0]);
+        }
     }
 }

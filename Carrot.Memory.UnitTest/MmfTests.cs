@@ -33,8 +33,8 @@ namespace Carrot.Memory.UnitTest
             int pageSize = 4; // 2^2
             
             // 第一阶段：写入数据
-            var options = new PagedBuffer2DOptions { Width = width, PageSize = pageSize, RootPath = _testDir };
-            using (var container = new PagedBuffer2D<int>(options, new MmfPageProvider<int>(_testDir!)))
+            var options = new Buffer2DOptions { Width = width, PageSize = pageSize };
+            using (var container = new PagedBuffer2D<int>(options, new MmfPageProvider<int>(_testDir!), persistPath: _testDir))
             {
                 container.SetElement(0, 0, 100);
                 container.SetElement(5, 5, 200); // 跨页
@@ -43,7 +43,7 @@ namespace Carrot.Memory.UnitTest
             }
 
             // 第二阶段：重新加载验证
-            using (var container = PagedBuffer2DFactory.Open<int>(_testDir!))
+            using (var container = Buffer2D.Open<int>(_testDir!))
             {
                 Assert.AreEqual(11, container.RowCount);
                 Assert.AreEqual(100, container[0, 0]);
@@ -57,8 +57,8 @@ namespace Carrot.Memory.UnitTest
         {
             // 这个测试确保 Dispose 后文件不再被占用
             string pageFile;
-            var options = new PagedBuffer2DOptions { Width = 10, PageSize = 4, RootPath = _testDir };
-            using (var container = new PagedBuffer2D<int>(options, new MmfPageProvider<int>(_testDir!)))
+            var options = new Buffer2DOptions { Width = 10, PageSize = 4 };
+            using (var container = new PagedBuffer2D<int>(options, new MmfPageProvider<int>(_testDir!), persistPath: _testDir))
             {
                 container.SetElement(0, 0, 1);
                 container.Commit();
