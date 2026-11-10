@@ -18,8 +18,15 @@ namespace Carrot.Memory.Views
         /// </summary>
         public int Length => _len;
 
+        /// <summary>
+        /// 构造针对指定二维缓冲区的列视图。
+        /// </summary>
+        /// <param name="parent">所属的二维缓冲区实例。</param>
+        /// <param name="r">起始行索引。</param>
+        /// <param name="c">列索引。</param>
+        /// <param name="len">截取的垂直长度。</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ColumnView(IBuffer2D<T> parent, int r, int c, int len)
+        public ColumnView(IBuffer2D<T> parent, int r, int c, int len)
         {
             _parent = parent;
             _r = r;

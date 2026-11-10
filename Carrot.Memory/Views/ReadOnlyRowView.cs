@@ -16,8 +16,12 @@ namespace Carrot.Memory
         /// </summary>
         public int Length => _span.Length;
 
+        /// <summary>
+        /// 使用只读连续内存切片构造只读行视图。
+        /// </summary>
+        /// <param name="span">行数据的只读内存切片。</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ReadOnlyRowView(ReadOnlySpan<T> span) => _span = span;
+        public ReadOnlyRowView(ReadOnlySpan<T> span) => _span = span;
 
         /// <summary>
         /// 获取视图中指定偏移位置的元素只读引用。

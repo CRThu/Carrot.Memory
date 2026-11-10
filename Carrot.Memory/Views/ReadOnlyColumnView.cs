@@ -19,8 +19,15 @@ namespace Carrot.Memory
         /// </summary>
         public int Length => _len;
 
+        /// <summary>
+        /// 构造针对指定二维缓冲区的只读列视图。
+        /// </summary>
+        /// <param name="parent">所属的只读二维缓冲区实例。</param>
+        /// <param name="r">起始行索引。</param>
+        /// <param name="c">列索引。</param>
+        /// <param name="len">截取的垂直长度。</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ReadOnlyColumnView(IReadOnlyBuffer2D<T> parent, int r, int c, int len)
+        public ReadOnlyColumnView(IReadOnlyBuffer2D<T> parent, int r, int c, int len)
         {
             _parent = parent;
             _r = r;

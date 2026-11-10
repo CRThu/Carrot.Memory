@@ -16,8 +16,12 @@ namespace Carrot.Memory
         /// </summary>
         public int Length => _span.Length;
 
+        /// <summary>
+        /// 使用连续内存切片构造行视图。
+        /// </summary>
+        /// <param name="span">行数据的可写内存切片。</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal RowView(Span<T> span) => _span = span;
+        public RowView(Span<T> span) => _span = span;
 
         /// <summary>
         /// 获取视图中指定偏移位置的元素引用。
