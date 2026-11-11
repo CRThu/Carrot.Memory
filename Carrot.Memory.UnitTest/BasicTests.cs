@@ -3,6 +3,7 @@ namespace Carrot.Memory.UnitTest;
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Carrot.Memory;
+using Carrot.Memory.Abstractions;
 using CommunityToolkit.HighPerformance;
 
 /// <summary>
@@ -105,5 +106,78 @@ public class BasicTests
         {
             Assert.AreEqual((startRow + i) * 1.0, view[i]);
         }
+    }
+
+    [TestMethod]
+    public void Views_ImplicitConversionAndForeach_ShouldWorkCorrectly()
+    {
+        var paged = new PagedBuffer2D<int>(new Buffer2DOptions { Width = DefaultWidth, PageSize = PageSize }, new HeapProvider<int>());
+        int[] rowData = { 11, 22, 33, 44, 55 };
+        paged.SetRow(5, 10, rowData);
+
+        // 1. RowView 隐式转换为 Span / ReadOnlySpan
+        RowView<int> rowView = paged.GetRowView(5, 10, 5);
+        Span<int> span = rowView;
+        Assert.AreEqual(5, span.Length);
+        Assert.AreEqual(11, span[0]);
+        ReadOnlySpan<int> roSpanFromMut = rowView;
+        Assert.AreEqual(5, roSpanFromMut.Length);
+
+        // 2. ReadOnlyRowView 隐式转换为 ReadOnlySpan
+        IReadOnlyBuffer2D<int> roBuffer = paged;
+        ReadOnlyRowView<int> roRowView = roBuffer.GetRowView(5, 10, 5);
+        ReadOnlySpan<int> roSpan = roRowView;
+        Assert.AreEqual(5, roSpan.Length);
+        Assert.AreEqual(55, roSpan[4]);
+
+        // 3. 行视图 foreach 遍历求和
+        int rowSum = 0;
+        foreach (var val in roRowView)
+        {
+            rowSum += val;
+        }
+        Assert.AreEqual(11 + 22 + 33 + 44 + 55, rowSum);
+
+        // 4. 列视图（跨页）foreach 遍历求和
+        int startRow = PageSize - 2;
+        int len = 5; // 跨页
+        for (int i = 0; i < len; i++)
+        {
+            paged.SetElement(startRow + i, 8, (i + 1) * 10);
+        }
+
+        ReadOnlyColumnView<int> roColView = roBuffer.GetColumnView(startRow, 8, len);
+        int colSum = 0;
+        foreach (var val in roColView)
+        {
+            colSum += val;
+        }
+        Assert.AreEqual(10 + 20 + 30 + 40 + 50, colSum);
+
+        Views.ColumnView<int> colView = paged.GetColumnView(startRow, 8, len);
+        int mutColSum = 0;
+        foreach (ref int val in colView)
+        {
+            mutColSum += val;
+        }
+        Assert.AreEqual(colSum, mutColSum);
+
+        // 5. 空视图 (Length = 0) 的 foreach 路径安全验证
+        RowView<int> emptyRowView = paged.GetRowView(5, 10, 0);
+        int emptyCount = 0;
+        foreach (var _ in emptyRowView) emptyCount++;
+        Assert.AreEqual(0, emptyCount);
+
+        ReadOnlyRowView<int> roEmptyRowView = roBuffer.GetRowView(5, 10, 0);
+        foreach (var _ in roEmptyRowView) emptyCount++;
+        Assert.AreEqual(0, emptyCount);
+
+        Views.ColumnView<int> emptyColView = paged.GetColumnView(startRow, 8, 0);
+        foreach (var _ in emptyColView) emptyCount++;
+        Assert.AreEqual(0, emptyCount);
+
+        ReadOnlyColumnView<int> roEmptyColView = roBuffer.GetColumnView(startRow, 8, 0);
+        foreach (var _ in roEmptyColView) emptyCount++;
+        Assert.AreEqual(0, emptyCount);
     }
 }

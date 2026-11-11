@@ -52,5 +52,47 @@ namespace Carrot.Memory
 
         [DoesNotReturn]
         private static void ThrowIndexOutOfRangeException() => throw new IndexOutOfRangeException("视图访问越界。");
+
+        /// <summary>
+        /// 支持通过 foreach 枚举视图中的元素。
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Enumerator GetEnumerator() => new(this);
+
+        /// <summary>
+        /// 只读列视图枚举器。
+        /// </summary>
+        public ref struct Enumerator
+        {
+            private readonly ReadOnlyColumnView<T> _view;
+            private int _index;
+
+            /// <summary>
+            /// 构造针对指定只读列视图的枚举器。
+            /// </summary>
+            /// <param name="view">目标列视图。</param>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public Enumerator(ReadOnlyColumnView<T> view)
+            {
+                _view = view;
+                _index = -1;
+            }
+
+            /// <summary>
+            /// 推进到下一个元素。
+            /// </summary>
+            /// <returns>若成功推进则为 true；若已到末尾则为 false。</returns>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool MoveNext() => ++_index < _view.Length;
+
+            /// <summary>
+            /// 获取当前元素。
+            /// </summary>
+            public ref readonly T Current
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get => ref _view[_index];
+            }
+        }
     }
 }
